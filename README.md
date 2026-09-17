@@ -72,7 +72,8 @@ uv run mojo build src/bp/main.mojo -o tools/bp
 * [x] Golden-корпус: 43/44 примера, 46 `.rbf` + 46 `.lmsb` эталонов
 * [x] Лексер стадий 1-2 — верифицирован против C#-оракула: 0 расхождений (корпус + 146 кейсов + 8000 фаззинг)
 * [x] Развёртка/линковка → `~Name.bp` байт-в-байт: `tools/difftest.sh expand` — 42 pass из 44 (fail = Include/Main — include/import вне задачи; skip = New_Path_Examples — у оракула нет эталона, баг с `..`); квирки break_N/continue_N, порядок init-переменных, медиа-пути — по C# (docs/notes-expansion-questions.md закрыт)
-* [~] Стадия 3 (`.lmsb`) и стадия 4 (`.rbf`) — в работе (параллельно, у каждой своя golden-петля)
+* [~] Стадия 3 (`.lmsb`) — в работе (`tools/difftest_lmsb.sh`, своя golden-петля)
+* [x] Стадия 4 (`.rbf`, ассемблер) — побайтно против C#-оракула: `tools/difftest_rbf.sh` — 46/46 эталонов (`tests/golden/**`) + Program1 (1015 Б) байт-в-байт; квирки: back-patching меток с переменной длиной (отсчёт от конца инструкции), `A:B`-разности, второй байт 2-байтовых мнемоник как константа (`UI_DRAW TEXTBOX` → `84 81 20`), запрещённый padding у IN_/OUT_/IO_, корректно-округлённый разбор float (`3.1415926535897932384`)
 * [ ] LSP-сервер
 * [ ] tree-sitter + расширение Zed
 * [ ] Заливка на кирпич из CLI

@@ -2,7 +2,10 @@
 __pycache__/
 *.pyc
 tests/.oracle_work/
+tests/.diff_work/
+tests/.rbf_work/
 *.mojopkg
 tools/bp
+tools/bp_lmsb
 tools/bp_usb
 *.o
