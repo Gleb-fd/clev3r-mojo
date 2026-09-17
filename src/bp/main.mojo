@@ -6,7 +6,7 @@
 from std.sys import argv
 from bp.util import read_lines, usage, base_name, strip_ext
 from bp.diag import Diagnostics
-from bp.lexer import build_line, canonical_text
+from bp.lexer import build_line, Line
 
 
 def cmd_lex(path: String) raises -> Int:
@@ -20,7 +20,8 @@ def cmd_lex(path: String) raises -> Int:
         var words = List[String]()
         for j in range(len(line.words)):
             words.append(line.words[j].text)
-        print(canonical_text(words))
+        print(String(" ").join(words))
+    return 0
 
 
 def cmd_not_implemented(name: String) -> Int:

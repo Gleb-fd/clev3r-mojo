@@ -38,7 +38,6 @@ for bp in "${FILES[@]}"; do
 
     case "$STAGE" in
         expand)
-            "$BP" compile "$bp" "$(realpath "$dir")" >/dev/null 2>&1
             got="$dir/~$name/~$name.bp"; ref="$gdir/~$name.bp"
             ;;
         lmsb)
