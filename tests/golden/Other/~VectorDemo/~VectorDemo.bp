@@ -1,0 +1,74 @@
+gv_a [ 0 ] = 0
+gv_i = 0
+gv_b [ 0 ] = 0
+gv_x [ 0 ] = 0
+gv_y [ 0 ] = 0
+gv_n = 0
+gv_m = 0
+gv_k = 0
+gv_h = 0
+gv_j = 0
+gv_c [ 0 ] = 0
+LCD.Clear ()
+LCD.Text ( 1 , 0 , 0 , 1 , "Vector operations" )
+gv_a = Vector.Data ( 5 , " 13 -8 " )
+gv_a [ 4 ] = 4
+LCD.Text ( 1 , 0 , 24 , 0 , "A: " )
+For gv_i = 0 To 4
+LCD.Text ( 1 , 30 + 20 * gv_i , 24 , 1 , gv_a [ gv_i ] )
+EndFor
+gv_b = Vector.Init ( 5 , 7 )
+LCD.Text ( 1 , 0 , 36 , 1 , " + " )
+For gv_i = 0 To 4
+LCD.Text ( 1 , 30 + 20 * gv_i , 36 , 1 , gv_b [ gv_i ] )
+EndFor
+gv_x = Vector.Add ( 5 , gv_a , gv_b )
+LCD.Text ( 1 , 0 , 48 , 1 , "X: " )
+For gv_i = 0 To 4
+LCD.Text ( 1 , 30 + 20 * gv_i , 48 , 1 , gv_x [ gv_i ] )
+EndFor
+gv_y = gv_a
+gv_y = Vector.Multiply ( 1 , 1 , 5 , gv_y , gv_x )
+LCD.Text ( 1 , 10 , 72 , 1 , "scalar A*X: " + gv_y [ 0 ] )
+Buttons.Flush ()
+Buttons.Wait ()
+LCD.Clear ()
+LCD.Text ( 1 , 0 , 0 , 1 , "Multiply" )
+LCD.Text ( 1 , 0 , 10 , 1 , "matrizes" )
+gv_n = 4
+gv_m = 3
+gv_k = 2
+gv_a = Vector.Data ( 4 * 2 , " 2  -1 1 3 1 2   -3 1  " )
+For gv_i = 0 To gv_n - 1
+For gv_h = 0 To gv_k - 1
+LCD.Text ( 1 , 10 + 30 * gv_h , 60 + 12 * gv_i , 1 , gv_a [ gv_k * gv_i + gv_h ] )
+EndFor
+EndFor
+gv_b = Vector.Data ( 2 * 3 , "3 -1 4 3 2 -2 unused trailing 0 0 4" )
+For gv_h = 0 To gv_k - 1
+For gv_j = 0 To gv_m - 1
+LCD.Text ( 1 , 80 + 30 * gv_j , 20 + 12 * gv_h , 1 , gv_b [ gv_m * gv_h + gv_j ] )
+EndFor
+EndFor
+gv_c = Vector.Multiply ( gv_n , gv_m , gv_k , gv_a , gv_b )
+For gv_i = 0 To gv_n - 1
+For gv_j = 0 To gv_m - 1
+LCD.Text ( 1 , 80 + 30 * gv_j , 60 + 12 * gv_i , 1 , gv_c [ gv_m * gv_i + gv_j ] )
+EndFor
+EndFor
+Buttons.Flush ()
+Buttons.Wait ()
+LCD.Clear ()
+LCD.Text ( 1 , 0 , 0 , 1 , "Sort 60 numbers" )
+gv_x = Vector.Init ( 57 , 0 )
+For gv_i = 0 To 57 - 1
+gv_x [ gv_i ] = Math.GetRandomNumber ( 1099 ) - 99
+EndFor
+gv_y = Vector.Sort ( 60 , gv_x )
+For gv_i = 0 To 12 - 1
+For gv_j = 0 To 5 - 1
+LCD.Text ( 1 , 36 * gv_j , 9 + 10 * gv_i , 1 , gv_y [ gv_i * 5 + gv_j ] )
+endfor
+EndFor
+Buttons.Flush ()
+Buttons.Wait ()

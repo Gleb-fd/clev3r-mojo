@@ -1,0 +1,18 @@
+gv_y_prev = 0
+gv_x = 0
+gv_y = 0
+gv_y_inc = 0
+gv_y_prev = 0
+For gv_x = 1 To 3600
+gv_y = 50 * Math.Sin ( gv_x / 180 * Math.PI )
+gv_y = Math.Round ( gv_y )
+gv_y_inc = gv_y - gv_y_prev
+gv_y_prev = gv_y
+Motor.SchedulePower ( "A" , 30 , 0 , 1 , 0 , "true" )
+If gv_y_inc > 0 Then
+Motor.SchedulePower ( "B" , 30 , 0 , gv_y_inc , 0 , "true" )
+Else
+Motor.SchedulePower ( "B" , - 30 , 0 , gv_y_inc , 0 , "true" )
+EndIf
+Motor.Wait ( "AB" )
+EndFor

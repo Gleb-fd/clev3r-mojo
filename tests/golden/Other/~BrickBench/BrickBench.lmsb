@@ -1,0 +1,1201 @@
+DATA16 FD_NATIVECODECOMMAND
+DATA16 FD_NATIVECODERESPONSE
+DATA32 STOPLCDUPDATE
+DATA32 NUMMAILBOXES
+ARRAY8 MOTORISINVERTED 4     
+ARRAY8 FIRSTOF2  16
+ARRAY16 LOCKS 2           
+DATA32 s1out1
+DATA32 s1out2
+DATA32 s1out3
+DATA32 s2out1
+DATA32 s2out2
+DATA32 s2out3
+DATA32 s3out1
+DATA32 s3out2
+DATA32 s3out3
+DATA32 s4out1
+DATA32 s4out2
+DATA32 s4out3
+DATA32 getTachoA
+DATA32 tmpTachoA
+DATA8 getSpeedA
+DATA8 setSpeedA
+DATA8 setPowerA
+DATA32 getTachoB
+DATA32 tmpTachoB
+DATA8 getSpeedB
+DATA8 setSpeedB
+DATA8 setPowerB
+DATA32 getTachoC
+DATA32 tmpTachoC
+DATA8 getSpeedC
+DATA8 setSpeedC
+DATA8 setPowerC
+DATA32 getTachoD
+DATA32 tmpTachoD
+DATA8 getSpeedD
+DATA8 setSpeedD
+DATA8 setPowerD
+DATA16 newArray1d
+DATA32 newSize1d
+DATA32 newIndex1d
+DATA32 timeMC1
+DATA32 timeMC2
+DATA32 timeMC3
+DATA32 timeMC4
+DATA32 timeMC5
+DATA32 timeMC6
+DATA32 timeMC7
+DATA32 timeMC8
+DATA32 timeMC9
+DATA32 timeMC1tmp
+DATA32 timeMC2tmp
+DATA32 timeMC3tmp
+DATA32 timeMC4tmp
+DATA32 timeMC5tmp
+DATA32 timeMC6tmp
+DATA32 timeMC7tmp
+DATA32 timeMC8tmp
+DATA32 timeMC9tmp
+ARRAY16 VGV_RUNTIME 2
+ARRAY16 VGV_A 2
+ARRAY16 VGV_B 2
+ARRAY16 VGV_C 2
+DATAF VGV_PI
+ARRAY16 VGV_MD_A 2
+DATAF VGV_MD_RESULT
+DATAF VGV_Y
+DATAF VGV_TIME0
+DATAF VGV_I
+DATAF VGV_J
+DATAF VGV_K
+DATAF VGV_L
+DATAF VGV_M
+DATAF VGV_N
+DATAF VGV_O
+DATAF VGV_P
+DATAF VGV_Q
+DATAF VGV_R
+DATAF VGV_S
+DATAF VGV_X
+ARRAY16 VGV_LA 2
+ARRAY16 VGV_LB 2
+ARRAY16 VGV_LO 2
+ARRAY16 VGV_LC 2
+ARRAY16 VGV_T 2
+
+vmthread MAIN
+{
+    MOVE32_32 0 STOPLCDUPDATE
+    MOVE32_32 0 NUMMAILBOXES
+    OUTPUT_RESET 0 15
+
+	WRITE8 0 0 MOTORISINVERTED
+	WRITE8 0 1 MOTORISINVERTED
+	WRITE8 0 2 MOTORISINVERTED
+	WRITE8 0 3 MOTORISINVERTED
+	WRITE8 0 0 FIRSTOF2
+	WRITE8 0 1 FIRSTOF2
+	WRITE8 0 2 FIRSTOF2
+	WRITE8 1 3 FIRSTOF2
+	WRITE8 0 4 FIRSTOF2
+	WRITE8 1 5 FIRSTOF2
+	WRITE8 2 6 FIRSTOF2
+	WRITE8 0 7 FIRSTOF2
+	WRITE8 0 8 FIRSTOF2
+	WRITE8 1 9 FIRSTOF2
+	WRITE8 2 10 FIRSTOF2
+	WRITE8 0 11 FIRSTOF2
+	WRITE8 4 12 FIRSTOF2
+	WRITE8 0 13 FIRSTOF2
+	WRITE8 0 14 FIRSTOF2
+	WRITE8 0 15 FIRSTOF2
+    INPUT_DEVICE CLR_ALL -1
+    ARRAY CREATE8 0 LOCKS
+    MOVE32_32 0 s1out1
+	MOVE32_32 0 s1out2
+	MOVE32_32 0 s1out3
+    MOVE32_32 0 s2out1
+	MOVE32_32 0 s2out2
+	MOVE32_32 0 s2out3
+    MOVE32_32 0 s3out1
+	MOVE32_32 0 s3out2
+	MOVE32_32 0 s3out3
+    MOVE32_32 0 s4out1
+	MOVE32_32 0 s4out2
+	MOVE32_32 0 s4out3
+    MOVE32_32 0 timeMC1
+	MOVE32_32 0 timeMC2
+	MOVE32_32 0 timeMC3
+	MOVE32_32 0 timeMC4
+	MOVE32_32 0 timeMC5
+	MOVE32_32 0 timeMC6
+	MOVE32_32 0 timeMC7
+	MOVE32_32 0 timeMC8
+	MOVE32_32 0 timeMC9
+    CALL ARRAYCREATE_FLOAT VGV_RUNTIME
+    CALL ARRAYCREATE_FLOAT VGV_A
+    CALL ARRAYCREATE_FLOAT VGV_B
+    CALL ARRAYCREATE_FLOAT VGV_C
+    MOVEF_F 0.0 VGV_PI
+    CALL ARRAYCREATE_FLOAT VGV_MD_A
+    MOVEF_F 0.0 VGV_MD_RESULT
+    MOVEF_F 0.0 VGV_Y
+    MOVEF_F 0.0 VGV_TIME0
+    MOVEF_F 0.0 VGV_I
+    MOVEF_F 0.0 VGV_J
+    MOVEF_F 0.0 VGV_K
+    MOVEF_F 0.0 VGV_L
+    MOVEF_F 0.0 VGV_M
+    MOVEF_F 0.0 VGV_N
+    MOVEF_F 0.0 VGV_O
+    MOVEF_F 0.0 VGV_P
+    MOVEF_F 0.0 VGV_Q
+    MOVEF_F 0.0 VGV_R
+    MOVEF_F 0.0 VGV_S
+    MOVEF_F 0.0 VGV_X
+    CALL ARRAYCREATE_FLOAT VGV_LA
+    CALL ARRAYCREATE_FLOAT VGV_LB
+    CALL ARRAYCREATE_FLOAT VGV_LO
+    CALL ARRAYCREATE_FLOAT VGV_LC
+    CALL ARRAYCREATE_FLOAT VGV_T
+    ARRAY CREATE8 1 LOCKS
+    CALL PROGRAM_MAIN -1
+    PROGRAM_STOP -1
+}
+subcall PROGRAM_MAIN
+{
+    IN_32 SUBPROGRAM
+    DATA32 INDEX
+    ARRAY8 STACKPOINTER 4
+    DATAF F.0
+    DATAF F.1
+    DATAF F.2
+    DATAF F.3
+    ARRAY32 RETURNSTACK2 128
+    ARRAY32 RETURNSTACK 128
+    DATAS S.0 252
+    DATAS S.1 252
+    DATAS S.2 252
+    DATAS S.3 252
+    MOVE8_8 0 STACKPOINTER
+    CALL ARRAYSTORE_FLOAT 0.0 0.0 VGV_RUNTIME
+    CALL ARRAYSTORE_FLOAT 0.0 0.0 VGV_A
+    CALL ARRAYSTORE_FLOAT 0.0 0.0 VGV_B
+    CALL ARRAYSTORE_FLOAT 0.0 0.0 VGV_C
+    MOVEF_F 0.0 VGV_PI
+    CALL ARRAYSTORE_FLOAT 0.0 0.0 VGV_MD_A
+    MOVEF_F 0.0 VGV_MD_RESULT
+    MOVEF_F 0.0 VGV_Y
+    MOVEF_F 0.0 VGV_TIME0
+    MOVEF_F 0.0 VGV_I
+    MOVEF_F 0.0 VGV_J
+    MOVEF_F 0.0 VGV_K
+    MOVEF_F 0.0 VGV_L
+    MOVEF_F 0.0 VGV_M
+    MOVEF_F 0.0 VGV_N
+    MOVEF_F 0.0 VGV_O
+    MOVEF_F 0.0 VGV_P
+    MOVEF_F 0.0 VGV_Q
+    MOVEF_F 0.0 VGV_R
+    MOVEF_F 0.0 VGV_S
+    MOVEF_F 0.0 VGV_X
+    CALL ARRAYSTORE_FLOAT 0.0 0.0 VGV_LA
+    CALL ARRAYSTORE_FLOAT 0.0 0.0 VGV_LB
+    CALL ARRAYSTORE_FLOAT 0.0 0.0 VGV_LO
+    CALL ARRAYSTORE_FLOAT 0.0 0.0 VGV_LC
+    CALL ARRAYSTORE_FLOAT 0.0 0.0 VGV_T
+    CALL VECTOR.INIT 8.0 -1.0 VGV_RUNTIME
+    CALL VECTOR.INIT 500.0 0.0 VGV_A
+    CALL VECTOR.INIT 500.0 0.0 VGV_B
+    CALL VECTOR.INIT 500.0 0.0 VGV_C
+    MOVEF_F 3.1415926535897932384 VGV_PI
+    CALL VECTOR.INIT 0.0 0.0 VGV_MD_A
+    MOVEF_F 0.0 VGV_MD_RESULT
+    CALL LCD.CLEAR
+    CALL LCD.TEXT 1.0 0.0 10.0 1.0 'hw brickbench'
+    CALL LCD.TEXT 1.0 0.0 20.0 1.0 '(C)H.Wunder 2013'
+    CALL LCD.TEXT 1.0 0.0 30.0 1.0 'EV3-Basic port: c0pperdragon'
+    CALL LCD.TEXT 1.0 0.0 50.0 1.0 'initializing...'
+    MOVEF_F 0.0 VGV_Y
+  for21:
+    JR_GTF VGV_Y 499.0 endfor21
+  forbody21:
+    CALL MATH.GETRANDOMNUMBER 30000.0 F.1
+    SUBF F.1 1.0 F.0
+    CALL ARRAYSTORE_FLOAT VGV_Y F.0 VGV_A
+    CALL MATH.GETRANDOMNUMBER 30000.0 F.1
+    SUBF F.1 1.0 F.0
+    CALL ARRAYSTORE_FLOAT VGV_Y F.0 VGV_B
+    CALL MATH.GETRANDOMNUMBER 30000.0 F.1
+    SUBF F.1 1.0 F.0
+    CALL ARRAYSTORE_FLOAT VGV_Y F.0 VGV_C
+    ADDF VGV_Y 1.0 VGV_Y
+    JR_LTEQF VGV_Y 499.0 forbody21
+  endfor21:
+    CALL LCD.CLEAR
+    CALL EV3.TIME VGV_TIME0
+    WRITE32 ENDSUB_F_TEST_INT_ADD_0:CALLSUB34 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_TEST_INT_ADD_0
+CALLSUB34:
+    CALL EV3.TIME F.1
+    SUBF F.1 VGV_TIME0 F.0
+    CALL ARRAYSTORE_FLOAT 0.0 F.0 VGV_RUNTIME
+    WRITE32 ENDSUB_F_DISPLAYVALUES_0:CALLSUB38 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_DISPLAYVALUES_0
+CALLSUB38:
+    CALL EV3.TIME VGV_TIME0
+    WRITE32 ENDSUB_F_TEST_INT_MULT_0:CALLSUB40 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_TEST_INT_MULT_0
+CALLSUB40:
+    CALL EV3.TIME F.1
+    SUBF F.1 VGV_TIME0 F.0
+    CALL ARRAYSTORE_FLOAT 1.0 F.0 VGV_RUNTIME
+    WRITE32 ENDSUB_F_DISPLAYVALUES_0:CALLSUB44 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_DISPLAYVALUES_0
+CALLSUB44:
+    CALL EV3.TIME VGV_TIME0
+    WRITE32 ENDSUB_F_TEST_FLOAT_MATH_0:CALLSUB46 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_TEST_FLOAT_MATH_0
+CALLSUB46:
+    CALL EV3.TIME F.1
+    SUBF F.1 VGV_TIME0 F.0
+    CALL ARRAYSTORE_FLOAT 2.0 F.0 VGV_RUNTIME
+    WRITE32 ENDSUB_F_DISPLAYVALUES_0:CALLSUB50 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_DISPLAYVALUES_0
+CALLSUB50:
+    CALL EV3.TIME VGV_TIME0
+    CALL EV3.TIME F.1
+    SUBF F.1 VGV_TIME0 F.0
+    CALL ARRAYSTORE_FLOAT 3.0 F.0 VGV_RUNTIME
+    WRITE32 ENDSUB_F_DISPLAYVALUES_0:CALLSUB55 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_DISPLAYVALUES_0
+CALLSUB55:
+    CALL EV3.TIME VGV_TIME0
+    WRITE32 ENDSUB_F_TEST_MATRIX_MATH_0:CALLSUB57 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_TEST_MATRIX_MATH_0
+CALLSUB57:
+    CALL EV3.TIME F.1
+    SUBF F.1 VGV_TIME0 F.0
+    CALL ARRAYSTORE_FLOAT 4.0 F.0 VGV_RUNTIME
+    WRITE32 ENDSUB_F_DISPLAYVALUES_0:CALLSUB61 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_DISPLAYVALUES_0
+CALLSUB61:
+    CALL EV3.TIME VGV_TIME0
+    WRITE32 ENDSUB_F_TEST_SORT_0:CALLSUB63 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_TEST_SORT_0
+CALLSUB63:
+    CALL EV3.TIME F.1
+    SUBF F.1 VGV_TIME0 F.0
+    CALL ARRAYSTORE_FLOAT 5.0 F.0 VGV_RUNTIME
+    WRITE32 ENDSUB_F_DISPLAYVALUES_0:CALLSUB67 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_DISPLAYVALUES_0
+CALLSUB67:
+    CALL EV3.TIME VGV_TIME0
+    WRITE32 ENDSUB_F_TEST_TEXTOUT_0:CALLSUB69 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_TEST_TEXTOUT_0
+CALLSUB69:
+    CALL EV3.TIME F.1
+    SUBF F.1 VGV_TIME0 F.0
+    CALL ARRAYSTORE_FLOAT 6.0 F.0 VGV_RUNTIME
+    WRITE32 ENDSUB_F_DISPLAYVALUES_0:CALLSUB73 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_DISPLAYVALUES_0
+CALLSUB73:
+    CALL EV3.TIME VGV_TIME0
+    WRITE32 ENDSUB_F_TEST_GRAPHICS_0:CALLSUB75 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_TEST_GRAPHICS_0
+CALLSUB75:
+    CALL EV3.TIME F.1
+    SUBF F.1 VGV_TIME0 F.0
+    CALL ARRAYSTORE_FLOAT 7.0 F.0 VGV_RUNTIME
+    WRITE32 ENDSUB_F_DISPLAYVALUES_0:CALLSUB79 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_DISPLAYVALUES_0
+CALLSUB79:
+    MOVEF_F 0.0 VGV_Y
+    MOVEF_F 0.0 VGV_X
+  for80:
+    JR_GTF VGV_X 7.0 endfor80
+  forbody80:
+    CALL ARRAYGET_FLOAT VGV_X F.0 VGV_RUNTIME
+    ADDF VGV_Y F.0 VGV_Y
+    ADDF VGV_X 1.0 VGV_X
+    JR_LTEQF VGV_X 7.0 forbody80
+  endfor80:
+    STRINGS VALUE_FORMATTED VGV_Y '%g' 99 S.1
+    CALL TEXT.APPEND 'total ms: ' S.1 S.0
+    CALL LCD.TEXT 1.0 0.0 95.0 1.0 S.0
+    DATAF tmpf87
+    DATA8 flag87
+    DIVF 50000000.0 VGV_Y tmpf87
+    CP_EQF 0.0 VGV_Y flag87
+    SELECTF flag87 0.0 tmpf87 F.0
+
+    STRINGS VALUE_FORMATTED F.0 '%g' 99 S.1
+    CALL TEXT.APPEND 'benchmark: ' S.1 S.0
+    CALL LCD.TEXT 1.0 0.0 105.0 1.0 S.0
+    UI_BUTTON FLUSH
+    UI_BUTTON WAIT_FOR_PRESS
+ENDTHREAD:
+    RETURN
+SUB_F_MATRIXDET2X2_0:
+    CALL ARRAYGET_FLOAT 0.0 F.1 VGV_MD_A
+    CALL ARRAYGET_FLOAT 3.0 F.2 VGV_MD_A
+    MULF F.1 F.2 F.0
+    CALL ARRAYGET_FLOAT 1.0 F.2 VGV_MD_A
+    CALL ARRAYGET_FLOAT 2.0 F.3 VGV_MD_A
+    MULF F.2 F.3 F.1
+    SUBF F.0 F.1 VGV_MD_RESULT
+RETSUB_F_MATRIXDET2X2_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_MATRIXDET2X2_0:
+SUB_F_MATRIXDET3X3_0:
+    CALL ARRAYGET_FLOAT 0.0 F.1 VGV_MD_A
+    CALL ARRAYGET_FLOAT 4.0 F.2 VGV_MD_A
+    MULF F.1 F.2 F.0
+    CALL ARRAYGET_FLOAT 8.0 F.1 VGV_MD_A
+    MULF F.0 F.1 VGV_MD_RESULT
+    CALL ARRAYGET_FLOAT 1.0 F.2 VGV_MD_A
+    CALL ARRAYGET_FLOAT 5.0 F.3 VGV_MD_A
+    MULF F.2 F.3 F.1
+    CALL ARRAYGET_FLOAT 6.0 F.2 VGV_MD_A
+    MULF F.1 F.2 F.0
+    ADDF VGV_MD_RESULT F.0 VGV_MD_RESULT
+    CALL ARRAYGET_FLOAT 2.0 F.2 VGV_MD_A
+    CALL ARRAYGET_FLOAT 3.0 F.3 VGV_MD_A
+    MULF F.2 F.3 F.1
+    CALL ARRAYGET_FLOAT 7.0 F.2 VGV_MD_A
+    MULF F.1 F.2 F.0
+    ADDF VGV_MD_RESULT F.0 VGV_MD_RESULT
+    CALL ARRAYGET_FLOAT 2.0 F.2 VGV_MD_A
+    CALL ARRAYGET_FLOAT 4.0 F.3 VGV_MD_A
+    MULF F.2 F.3 F.1
+    CALL ARRAYGET_FLOAT 6.0 F.2 VGV_MD_A
+    MULF F.1 F.2 F.0
+    SUBF VGV_MD_RESULT F.0 VGV_MD_RESULT
+    CALL ARRAYGET_FLOAT 1.0 F.2 VGV_MD_A
+    CALL ARRAYGET_FLOAT 3.0 F.3 VGV_MD_A
+    MULF F.2 F.3 F.1
+    CALL ARRAYGET_FLOAT 8.0 F.2 VGV_MD_A
+    MULF F.1 F.2 F.0
+    SUBF VGV_MD_RESULT F.0 VGV_MD_RESULT
+    CALL ARRAYGET_FLOAT 0.0 F.2 VGV_MD_A
+    CALL ARRAYGET_FLOAT 5.0 F.3 VGV_MD_A
+    MULF F.2 F.3 F.1
+    CALL ARRAYGET_FLOAT 7.0 F.2 VGV_MD_A
+    MULF F.1 F.2 F.0
+    SUBF VGV_MD_RESULT F.0 VGV_MD_RESULT
+RETSUB_F_MATRIXDET3X3_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_MATRIXDET3X3_0:
+SUB_F_TEST_INT_ADD_0:
+    MOVEF_F 1.0 VGV_I
+    MOVEF_F 11.0 VGV_J
+    MOVEF_F 112.0 VGV_K
+    MOVEF_F 1111.0 VGV_L
+    MOVEF_F 11111.0 VGV_M
+    MOVEF_F -1.0 VGV_N
+    MOVEF_F -11.0 VGV_O
+    MOVEF_F -111.0 VGV_P
+    MOVEF_F -1112.0 VGV_Q
+    MOVEF_F -11111.0 VGV_R
+    MOVEF_F 0.0 VGV_S
+    MOVEF_F 0.0 VGV_X
+  for135:
+    JR_GTF VGV_X 9999.0 endfor135
+  forbody135:
+    ADDF VGV_S VGV_I VGV_S
+    ADDF VGV_S VGV_J VGV_S
+    ADDF VGV_S VGV_K VGV_S
+    ADDF VGV_S VGV_L VGV_S
+    ADDF VGV_S VGV_M VGV_S
+    ADDF VGV_S VGV_N VGV_S
+    ADDF VGV_S VGV_O VGV_S
+    ADDF VGV_S VGV_P VGV_S
+    ADDF VGV_S VGV_Q VGV_S
+    ADDF VGV_S VGV_R VGV_S
+    ADDF VGV_X 1.0 VGV_X
+    JR_LTEQF VGV_X 9999.0 forbody135
+  endfor135:
+RETSUB_F_TEST_INT_ADD_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_TEST_INT_ADD_0:
+SUB_F_TEST_INT_MULT_0:
+    MOVEF_F 0.0 VGV_Y
+  for147:
+    JR_GTF VGV_Y 1999.0 endfor147
+  forbody147:
+    MOVEF_F 1.0 VGV_S
+    MOVEF_F 1.0 VGV_X
+  for148:
+    JR_GTF VGV_X 13.0 endfor148
+  forbody148:
+    MULF VGV_S VGV_X VGV_S
+    ADDF VGV_X 1.0 VGV_X
+    JR_LTEQF VGV_X 13.0 forbody148
+  endfor148:
+    MOVEF_F 13.0 VGV_X
+  for151:
+    JR_LTF VGV_X 1.0 endfor151
+  forbody151:
+    DATAF tmpf152
+    DATA8 flag152
+    DIVF VGV_S VGV_X tmpf152
+    CP_EQF 0.0 VGV_X flag152
+    SELECTF flag152 0.0 tmpf152 VGV_S
+
+    ADDF VGV_X -1.0 VGV_X
+    JR_GTEQF VGV_X 1.0 forbody151
+  endfor151:
+    ADDF VGV_Y 1.0 VGV_Y
+    JR_LTEQF VGV_Y 1999.0 forbody147
+  endfor147:
+RETSUB_F_TEST_INT_MULT_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_TEST_INT_MULT_0:
+SUB_F_TEST_FLOAT_MATH_0:
+    MOVEF_F 3.1415926535897932384 VGV_S
+    MOVEF_F 1.0 VGV_Y
+  for156:
+    JR_GTF VGV_Y 1000.0 endfor156
+  forbody156:
+    MATH SQRT VGV_S F.0
+    MULF VGV_S F.0 VGV_S
+    DATAF tmpf159
+	MULF VGV_S 57.295779513082  tmpf159
+	MATH SIN  tmpf159 VGV_S
+    MATH POW 2.71828182846 VGV_S VGV_S
+    MULF VGV_S VGV_S VGV_S
+    ADDF VGV_Y 1.0 VGV_Y
+    JR_LTEQF VGV_Y 1000.0 forbody156
+  endfor156:
+RETSUB_F_TEST_FLOAT_MATH_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_TEST_FLOAT_MATH_0:
+SUB_F_TEST_MATRIX_MATH_0:
+    CALL VECTOR.INIT 4.0 0.0 VGV_LA
+    CALL VECTOR.INIT 4.0 0.0 VGV_LB
+    CALL VECTOR.INIT 9.0 0.0 VGV_LO
+    MOVEF_F 1.0 VGV_X
+  for166:
+    JR_GTF VGV_X 250.0 endfor166
+  forbody166:
+    CALL ARRAYSTORE_FLOAT 0.0 1.0 VGV_LA
+    CALL ARRAYSTORE_FLOAT 1.0 3.0 VGV_LA
+    CALL ARRAYSTORE_FLOAT 2.0 2.0 VGV_LA
+    CALL ARRAYSTORE_FLOAT 3.0 4.0 VGV_LA
+    CALL ARRAYSTORE_FLOAT 0.0 10.0 VGV_LB
+    CALL ARRAYSTORE_FLOAT 1.0 30.0 VGV_LB
+    CALL ARRAYSTORE_FLOAT 2.0 20.0 VGV_LB
+    CALL ARRAYSTORE_FLOAT 3.0 40.0 VGV_LB
+    CALL VECTOR.MULTIPLY 2.0 2.0 2.0 VGV_LA VGV_LB VGV_LC
+    CALL ARRAYSTORE_FLOAT 0.0 1.0 VGV_LA
+    CALL ARRAYSTORE_FLOAT 1.0 3.0 VGV_LA
+    CALL ARRAYSTORE_FLOAT 2.0 2.0 VGV_LA
+    CALL ARRAYSTORE_FLOAT 3.0 4.0 VGV_LA
+    ARRAY COPY VGV_LA VGV_MD_A
+    WRITE32 ENDSUB_F_MATRIXDET2X2_0:CALLSUB180 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_MATRIXDET2X2_0
+CALLSUB180:
+    CALL ARRAYSTORE_FLOAT 0.0 1.0 VGV_LO
+    CALL ARRAYSTORE_FLOAT 1.0 4.0 VGV_LO
+    CALL ARRAYSTORE_FLOAT 2.0 7.0 VGV_LO
+    CALL ARRAYSTORE_FLOAT 3.0 2.0 VGV_LO
+    CALL ARRAYSTORE_FLOAT 4.0 5.0 VGV_LO
+    CALL ARRAYSTORE_FLOAT 5.0 8.0 VGV_LO
+    CALL ARRAYSTORE_FLOAT 6.0 3.0 VGV_LO
+    CALL ARRAYSTORE_FLOAT 7.0 6.0 VGV_LO
+    CALL ARRAYSTORE_FLOAT 8.0 9.0 VGV_LO
+    ARRAY COPY VGV_LO VGV_MD_A
+    WRITE32 ENDSUB_F_MATRIXDET3X3_0:CALLSUB190 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_MATRIXDET3X3_0
+CALLSUB190:
+    ADDF VGV_X 1.0 VGV_X
+    JR_LTEQF VGV_X 250.0 forbody166
+  endfor166:
+    CALL ARRAYGET_FLOAT 0.0 F.1 VGV_LO
+    CALL ARRAYGET_FLOAT 4.0 F.2 VGV_LO
+    MULF F.1 F.2 F.0
+    CALL ARRAYGET_FLOAT 8.0 F.1 VGV_LO
+    MULF F.0 F.1 VGV_S
+RETSUB_F_TEST_MATRIX_MATH_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_TEST_MATRIX_MATH_0:
+SUB_F_TEST_SORT_0:
+    MOVEF_F 1.0 VGV_Y
+  for197:
+    JR_GTF VGV_Y 30.0 endfor197
+  forbody197:
+    CALL VECTOR.SORT 500.0 VGV_A VGV_T
+    CALL VECTOR.SORT 500.0 VGV_B VGV_T
+    CALL VECTOR.SORT 500.0 VGV_C VGV_T
+    ADDF VGV_Y 1.0 VGV_Y
+    JR_LTEQF VGV_Y 30.0 forbody197
+  endfor197:
+RETSUB_F_TEST_SORT_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_TEST_SORT_0:
+SUB_F_TEST_TEXTOUT_0:
+    MOVEF_F 0.0 VGV_Y
+  for202:
+    JR_GTF VGV_Y 19.0 endfor202
+  forbody202:
+    MOVE32_32 1 STOPLCDUPDATE
+    CALL LCD.CLEAR
+    STRINGS VALUE_FORMATTED 0.0 '%g' 99 S.3
+    CALL TEXT.APPEND S.3 ' ' S.2
+    STRINGS VALUE_FORMATTED 1000.0 '%g' 99 S.3
+    CALL TEXT.APPEND S.2 S.3 S.1
+    CALL TEXT.APPEND S.1 ' int_Add' S.0
+    CALL LCD.TEXT 1.0 0.0 10.0 1.0 S.0
+    STRINGS VALUE_FORMATTED 1.0 '%g' 99 S.3
+    CALL TEXT.APPEND S.3 ' ' S.2
+    STRINGS VALUE_FORMATTED 1000.0 '%g' 99 S.3
+    CALL TEXT.APPEND S.2 S.3 S.1
+    CALL TEXT.APPEND S.1 ' int_Mult' S.0
+    CALL LCD.TEXT 1.0 0.0 20.0 1.0 S.0
+    STRINGS VALUE_FORMATTED 2.0 '%g' 99 S.3
+    CALL TEXT.APPEND S.3 ' ' S.2
+    STRINGS VALUE_FORMATTED 1000.0 '%g' 99 S.3
+    CALL TEXT.APPEND S.2 S.3 S.1
+    CALL TEXT.APPEND S.1 ' float_op' S.0
+    CALL LCD.TEXT 1.0 0.0 30.0 1.0 S.0
+    STRINGS VALUE_FORMATTED 3.0 '%g' 99 S.3
+    CALL TEXT.APPEND S.3 ' ' S.2
+    STRINGS VALUE_FORMATTED 1000.0 '%g' 99 S.3
+    CALL TEXT.APPEND S.2 S.3 S.1
+    CALL TEXT.APPEND S.1 ' randomize' S.0
+    CALL LCD.TEXT 1.0 0.0 40.0 1.0 S.0
+    STRINGS VALUE_FORMATTED 4.0 '%g' 99 S.3
+    CALL TEXT.APPEND S.3 ' ' S.2
+    STRINGS VALUE_FORMATTED 1000.0 '%g' 99 S.3
+    CALL TEXT.APPEND S.2 S.3 S.1
+    CALL TEXT.APPEND S.1 ' matrx_algb' S.0
+    CALL LCD.TEXT 1.0 0.0 50.0 1.0 S.0
+    STRINGS VALUE_FORMATTED 5.0 '%g' 99 S.3
+    CALL TEXT.APPEND S.3 ' ' S.2
+    STRINGS VALUE_FORMATTED 1000.0 '%g' 99 S.3
+    CALL TEXT.APPEND S.2 S.3 S.1
+    CALL TEXT.APPEND S.1 ' arr_sort' S.0
+    CALL LCD.TEXT 1.0 0.0 60.0 1.0 S.0
+    STRINGS VALUE_FORMATTED 6.0 '%g' 99 S.3
+    CALL TEXT.APPEND S.3 ' ' S.2
+    STRINGS VALUE_FORMATTED 1000.0 '%g' 99 S.3
+    CALL TEXT.APPEND S.2 S.3 S.1
+    CALL TEXT.APPEND S.1 ' displa_txt' S.0
+    CALL LCD.TEXT 1.0 0.0 70.0 1.0 S.0
+    STRINGS VALUE_FORMATTED 7.0 '%g' 99 S.3
+    CALL TEXT.APPEND S.3 ' ' S.2
+    STRINGS VALUE_FORMATTED 1000.0 '%g' 99 S.3
+    CALL TEXT.APPEND S.2 S.3 S.1
+    CALL TEXT.APPEND S.1 ' testing...' S.0
+    CALL LCD.TEXT 1.0 0.0 80.0 1.0 S.0
+    MOVE32_32 0 STOPLCDUPDATE
+	UI_DRAW UPDATE
+    ADDF VGV_Y 1.0 VGV_Y
+    JR_LTEQF VGV_Y 19.0 forbody202
+  endfor202:
+RETSUB_F_TEST_TEXTOUT_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_TEST_TEXTOUT_0:
+SUB_F_TEST_GRAPHICS_0:
+    MOVEF_F 0.0 VGV_Y
+  for255:
+    JR_GTF VGV_Y 99.0 endfor255
+  forbody255:
+    MOVE32_32 1 STOPLCDUPDATE
+    CALL LCD.CLEAR
+    CALL LCD.CIRCLE 1.0 50.0 40.0 10.0
+    CALL LCD.FILLCIRCLE 1.0 30.0 24.0 10.0
+    CALL LCD.LINE 1.0 10.0 10.0 60.0 60.0
+    CALL LCD.LINE 1.0 50.0 20.0 90.0 70.0
+    CALL LCD.RECT 1.0 20.0 20.0 40.0 40.0
+    CALL LCD.FILLRECT 1.0 65.0 25.0 20.0 30.0
+    CALL LCD.CIRCLE 1.0 70.0 30.0 15.0
+    MOVE32_32 0 STOPLCDUPDATE
+	UI_DRAW UPDATE
+    ADDF VGV_Y 1.0 VGV_Y
+    JR_LTEQF VGV_Y 99.0 forbody255
+  endfor255:
+RETSUB_F_TEST_GRAPHICS_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_TEST_GRAPHICS_0:
+SUB_F_DISPLAYVALUES_0:
+    CALL LCD.CLEAR
+    CALL ARRAYGET_FLOAT 0.0 F.0 VGV_RUNTIME
+    STRINGS VALUE_FORMATTED F.0 '%g' 99 S.2
+    CALL TEXT.APPEND '0: ' S.2 S.1
+    CALL TEXT.APPEND S.1 ' int_Add' S.0
+    CALL LCD.TEXT 1.0 0.0 10.0 1.0 S.0
+    CALL ARRAYGET_FLOAT 1.0 F.0 VGV_RUNTIME
+    STRINGS VALUE_FORMATTED F.0 '%g' 99 S.2
+    CALL TEXT.APPEND '1: ' S.2 S.1
+    CALL TEXT.APPEND S.1 ' int_Mult' S.0
+    CALL LCD.TEXT 1.0 0.0 20.0 1.0 S.0
+    CALL ARRAYGET_FLOAT 2.0 F.0 VGV_RUNTIME
+    STRINGS VALUE_FORMATTED F.0 '%g' 99 S.2
+    CALL TEXT.APPEND '2: ' S.2 S.1
+    CALL TEXT.APPEND S.1 ' float_op' S.0
+    CALL LCD.TEXT 1.0 0.0 30.0 1.0 S.0
+    CALL ARRAYGET_FLOAT 3.0 F.0 VGV_RUNTIME
+    STRINGS VALUE_FORMATTED F.0 '%g' 99 S.2
+    CALL TEXT.APPEND '3: ' S.2 S.1
+    CALL TEXT.APPEND S.1 ' randomize' S.0
+    CALL LCD.TEXT 1.0 0.0 40.0 1.0 S.0
+    CALL ARRAYGET_FLOAT 4.0 F.0 VGV_RUNTIME
+    STRINGS VALUE_FORMATTED F.0 '%g' 99 S.2
+    CALL TEXT.APPEND '4: ' S.2 S.1
+    CALL TEXT.APPEND S.1 ' matrix_algb' S.0
+    CALL LCD.TEXT 1.0 0.0 50.0 1.0 S.0
+    CALL ARRAYGET_FLOAT 5.0 F.0 VGV_RUNTIME
+    STRINGS VALUE_FORMATTED F.0 '%g' 99 S.2
+    CALL TEXT.APPEND '5: ' S.2 S.1
+    CALL TEXT.APPEND S.1 ' arr_sort' S.0
+    CALL LCD.TEXT 1.0 0.0 60.0 1.0 S.0
+    CALL ARRAYGET_FLOAT 6.0 F.0 VGV_RUNTIME
+    STRINGS VALUE_FORMATTED F.0 '%g' 99 S.2
+    CALL TEXT.APPEND '6: ' S.2 S.1
+    CALL TEXT.APPEND S.1 ' displ_txt' S.0
+    CALL LCD.TEXT 1.0 0.0 70.0 1.0 S.0
+    CALL ARRAYGET_FLOAT 7.0 F.0 VGV_RUNTIME
+    STRINGS VALUE_FORMATTED F.0 '%g' 99 S.2
+    CALL TEXT.APPEND '7: ' S.2 S.1
+    CALL TEXT.APPEND S.1 ' graphics' S.0
+    CALL LCD.TEXT 1.0 0.0 80.0 1.0 S.0
+RETSUB_F_DISPLAYVALUES_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_DISPLAYVALUES_0:
+}
+subcall ARRAYSTORE_FLOAT   // FFFV
+{
+	IN_F index
+	IN_F value	
+	IN_16 handle
+	
+	DATA32 index32
+	DATA32 len	
+	MOVEF_32 index index32
+
+	ARRAY SIZE handle len
+	JR_LT32 index32 0 negativeindex
+	JR_LT32 index32 len arraybigenough
+
+increasesize:	
+	DATA32 doublelen
+	ADD32 len len doublelen
+	ARRAY RESIZE handle doublelen
+writeloop:	
+	ARRAY_WRITE handle len 0.0
+	ADD32 len 1 len
+	JR_LT32 len doublelen writeloop
+	JR_GTEQ32 index32 len increasesize
+	
+arraybigenough:
+	ARRAY_WRITE handle index32 value
+negativeindex:
+}
+subcall VECTOR.INIT       // FFA
+{
+	IN_F size
+	IN_F value
+	IN_16 a
+
+	DATA32 size32
+	MOVEF_32 size size32
+	JR_LTEQ32 size32 0 empty
+
+	ARRAY RESIZE a size32
+	ARRAY FILL a value
+	RETURN
+
+empty:
+    ARRAY RESIZE a 0
+}
+subcall LCD.CLEAR   // V
+{
+	UI_DRAW(TOPLINE,0)
+	UI_DRAW(CLEAN)
+	
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall LCD.TEXT     // FFFFSV
+{
+	IN_F col
+	IN_F x
+	IN_F y
+	IN_F font
+	IN_S text 252
+	
+	DATA8 col_8
+	DATA16 x_16
+	DATA16 y_16
+	DATA8 font_8	
+	MOVEF_8 col col_8
+	MOVEF_16 x x_16
+	MOVEF_16 y y_16
+	MOVEF_8 font font_8
+	
+	UI_DRAW SELECT_FONT font_8
+	UI_DRAW TEXT col_8 x_16 y_16 text
+
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall MATH.GETRANDOMNUMBER   // FF
+{
+	IN_F range
+	OUT_F result
+	
+	DATA16 range_16
+	DATA16 value
+	MOVEF_16 range range_16
+	
+	RANDOM 1 range_16 value
+	MOVE16_F value result
+}
+subcall EV3.TIME  // F
+{
+	OUT_F time
+	
+	DATA32 ms
+	DATAF thousand
+	
+	TIMER_READ ms
+	MOVE32_F ms time	
+}
+subcall ARRAYGET_FLOAT     // FFF
+{
+	IN_F index
+	OUT_F value
+	IN_16 handle
+	
+	DATA32 index32
+	DATA32 len
+	MOVEF_32 index index32
+	
+	ARRAY SIZE handle len
+	JR_LT32 index32 0 outofbounds
+	JR_GTEQ32 index32 len outofbounds
+	
+	ARRAY_READ handle index32 value
+	RETURN
+outofbounds:
+	MOVE8_F 0 value	
+}
+subcall TEXT.APPEND     // SSS
+{
+	IN_S a 252
+	IN_S b 252
+    OUT_S result 252
+	
+	DATA16 len0
+	DATA16 len1
+	DATA16 sum
+
+	STRINGS GET_SIZE a len0
+	STRINGS GET_SIZE b len1
+	ADD16 len0,len1,sum
+	JR_GT16 sum,251,stringsizeexceeded
+
+	STRINGS ADD a b result
+	RETURN
+	
+stringsizeexceeded:	
+    STRINGS DUPLICATE a result
+}
+subcall VECTOR.MULTIPLY    // FFFAAA
+{
+	IN_F _N        // number of rows in result matrix
+	IN_F _M        // number of columns in result matrix
+	IN_F _K        // second dimension of A and B
+	IN_16 A        // matrix of N rows, K columns
+	IN_16 B        // matrix of K rows, M columns
+	IN_16 C        // result-matrix of N rows, M columns
+	DATA32 N
+	DATA32 M
+	DATA32 K
+	MOVEF_32 _N N
+	MOVEF_32 _M M
+	MOVEF_32 _K K
+
+	// get input matrix sizes for quick retrieval
+	DATA32 ALEN
+	DATA32 BLEN
+	ARRAY SIZE A ALEN
+	ARRAY SIZE B BLEN
+
+	// check if the numerical parameters make sense
+	JR_LTEQ32 N 0 outputempty
+	JR_LTEQ32 M 0 outputempty
+
+	// compute number of elements to compute
+	DATA32 MN
+	DATA32 KM
+	MUL32 M N MN
+	MUL32 K M KM
+
+	// check if the K value is at least 1 (otherwise can perform no multiplication)
+	JR_GT32 K 0 notallzero
+	ARRAY RESIZE C MN
+	ARRAY FILL C 0.0
+	RETURN
+notallzero:
+
+	// check if the output should be written into one of the input matrizes -
+	// need to create temporary storage to hold data while computation runs
+	DATA16 TARGET
+	JR_EQ16 C A needtemporary
+	JR_NEQ16 C B dontneedtemporary
+needtemporary:
+	// create computation target of correct size
+	ARRAY CREATEF MN TARGET
+	JR startcopy
+dontneedtemporary:
+	// set the result matrix to correct size
+	ARRAY RESIZE C MN
+	MOVE16_16 C TARGET
+
+startcopy:
+	DATA32 CIDX
+	MOVE32_32 0 CIDX 
+	DATA32 I
+	MOVE32_32 0 I
+loop_rows:	
+	DATA32 J
+	MOVE32_32 0 J
+loop_columns:
+    DATAF SUM
+	MOVEF_F 0.0 SUM
+
+    DATA32 AIDX 
+	MUL32 I K AIDX
+	DATA32 BIDX
+	MOVE32_32 J BIDX
+loop_scalarproduct:
+	DATAF TMP
+	DATAF PROD
+	JR_GTEQ32 AIDX ALEN nosourceelements
+	JR_GTEQ32 BIDX BLEN nosourceelements
+	ARRAY_READ A AIDX PROD
+	ARRAY_READ B BIDX TMP
+    MULF PROD TMP PROD
+	ADDF SUM PROD SUM
+	ADD32 AIDX 1 AIDX
+	ADD32 BIDX M BIDX
+	JR_LT32 BIDX KM loop_scalarproduct
+nosourceelements:
+
+	ARRAY_WRITE TARGET CIDX SUM
+	ADD32 CIDX 1 CIDX
+
+	ADD32 J 1 J 
+	JR_LT32 J M loop_columns
+	ADD32 I 1 I
+	JR_LT32 I N loop_rows
+
+	// check if need to store temporay data to output
+	JR_EQ16 C TARGET notemporary
+	ARRAY COPY TARGET C
+	ARRAY DELETE TARGET
+notemporary:
+	RETURN
+
+outputempty:
+	ARRAY RESIZE C 0
+}
+subcall VECTOR.SORT       // FAA
+{
+    IN_F  num  // number of elements
+	IN_16 a    // original array
+	IN_16 arr    // where to store
+
+	DATA32 elements
+	MOVEF_32 num elements
+	JR_GT32 elements 0 notempty
+    ARRAY RESIZE arr 0	
+	RETURN
+notempty:
+	
+	// memorize the original size of the input array
+	DATA32 sizea
+	ARRAY SIZE a sizea
+
+	JR_EQ16 a arr output_is_same_array
+	// if output array is not identical to input array, transfer data
+	ARRAY COPY a arr
+output_is_same_array:
+	// resize it  to correct size
+	ARRAY RESIZE arr elements
+	// resizing does not create 0 values, must create manually
+	JR_GTEQ32 sizea elements nomoreelementsneeded
+fillloop:
+	ARRAY_WRITE arr sizea 0.0
+	ADD32 sizea 1 sizea
+	JR_LT32 sizea elements fillloop
+nomoreelementsneeded:
+
+
+                                                 // //  quickSort
+                                                 // //
+                                                 // //  This public-domain C implementation by Darel Rex Finley.
+                                                 // //
+                                                 // //  * This function assumes it is called with valid parameters.
+                                                 // //
+                                                 // //  * Example calls:
+                                                 // //    quickSort(&myArray[0],5); // sorts elements 0, 1, 2, 3, and 4
+                                                 // //    quickSort(&myArray[3],5); // sorts elements 3, 4, 5, 6, and 7
+                                                 //
+                                                 // void quickSort(int *arr, int elements) {
+                                                 // 
+                                                 //  #define  MAX_LEVELS  300
+                                                 //
+    DATAF piv                                    //  int piv;
+	DATA8 i                                      //  int i=0;
+    MOVE8_8 0 i                                 
+	DATA32 L                                     //  int L;
+	DATA32 R                                     //  int R;
+	DATA32 swap                                  //  int SWAP;
+	ARRAY32 beg 128                              //  int beg[MAX_LEVELS];
+	ARRAY32 end 128                              //  int end[MAX_LEVELS];
+                                                 
+	WRITE32 0 0 beg                              //  beg[0]=0; 
+	WRITE32 elements 0 end                       //  end[0]=elements;
+while1:                                          //  while (i>=0) {
+    READ32 beg i L                               //    L=beg[i]; 
+	READ32 end i R                               //    R=end[i]-1;
+	SUB32 R 1 R
+    JR_GTEQ32 L R else1                          //    if (L<R) {
+    ARRAY_READ arr L piv                         //      piv=arr[L];
+    JR_GTEQ32 L R endwhile2                      //      while (L<R) {
+while2:                                          
+while3:         								 //        while (arr[R]>=piv && L<R) 
+    DATAF tmpf
+	ARRAY_READ arr R tmpf
+	JR_LTF tmpf piv endwhile3
+	JR_GTEQ32 L R endwhile3
+    SUB32 R 1 R                                  //           R--; 
+	JR while3											  
+endwhile3:
+	JR_GTEQ32 L R endif2                         //        if (L<R) 
+	ARRAY_READ arr R tmpf						 //           arr[L++]=arr[R];
+	ARRAY_WRITE arr L tmpf
+	ADD32 L 1 L
+endif2:
+while4:                                          //        while (arr[L]<=piv && L<R) 
+    ARRAY_READ arr L tmpf
+	JR_GTF tmpf piv endwhile4
+	JR_GTEQ32 L R endwhile4
+	ADD32 L 1 L								     //            L++; 
+	JR while4
+endwhile4:
+	JR_GTEQ32 L R endif3						 //        if (L<R) 
+	ARRAY_READ arr L tmpf						 //            arr[R--]=arr[L]; 
+	ARRAY_WRITE arr R tmpf
+	SUB32 R 1 R
+endif3:  											     
+    JR_LT32 L R while2                           //      }
+endwhile2:
+    ARRAY_WRITE arr L piv                        //      arr[L]=piv; 
+	DATA8 ip1									 //      beg[i+1]=L+1; 
+	ADD8 i 1 ip1
+	DATA32 tmp32
+	ADD32 L 1 tmp32
+	WRITE32 tmp32 ip1 beg
+	READ32 end i tmp32  						 //      end[i+1]=end[i]; 
+	WRITE32 tmp32 ip1 end
+	WRITE32 L i end	   						     //      end[i++]=L;
+	ADD8 i 1 i
+    DATA8 im1                                    //      if (end[i]-beg[i]>end[i-1]-beg[i-1]) {
+	SUB8 i 1 im1
+	DATA32 diff1
+	DATA32 diff2
+	READ32 end i diff1
+	READ32 beg i tmp32
+	SUB32 diff1 tmp32 diff1
+	READ32 end im1 diff2
+	READ32 beg im1 tmp32
+	SUB32 diff2 tmp32 diff2
+	JR_LTEQ32 diff1 diff2 endif4
+    READ32 beg i swap                            //        swap=beg[i]; 
+	READ32 beg im1 tmp32						 //        beg[i]=beg[i-1]; 
+	WRITE32 tmp32 i beg
+	WRITE32 swap im1 beg						 //        beg[i-1]=swap;
+    READ32 end i swap                            //        swap=end[i];
+	READ32 end im1 tmp32						 //        end[i]=end[i-1]; 
+	WRITE32 tmp32 i end
+	WRITE32 swap im1 end						 //        end[i-1]=swap; 
+endif4:											 //      }
+	JR endif1									 //    }
+else1:                                           //    else {
+    SUB8 i 1 i                                   //      i--;
+endif1:											 //    }
+	JR_GTEQ8 i 0 while1  						 //  }
+												 // }    
+}
+subcall LCD.CIRCLE     // FFFFV
+{
+	IN_F col
+	IN_F x
+	IN_F y
+	IN_F r
+	
+	DATA8 col_8
+	DATA16 x_16
+	DATA16 y_16
+	DATA16 r_16
+	MOVEF_8 col col_8
+	MOVEF_16 x x_16
+	MOVEF_16 y y_16
+	MOVEF_16 r r_16
+	
+	UI_DRAW CIRCLE col_8 x_16 y_16 r_16
+
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall LCD.FILLCIRCLE     // FFFFV
+{
+	IN_F col
+	IN_F x
+	IN_F y
+	IN_F r
+	
+	DATA8 col_8	
+	DATA16 x_16
+	DATA16 y_16
+	DATA16 r_16
+
+	MOVEF_8 col col_8
+	MOVEF_16 x x_16
+	MOVEF_16 y y_16
+	MOVEF_16 r r_16
+	
+	UI_DRAW FILLCIRCLE col_8 x_16 y_16 r_16
+
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:	
+}
+subcall LCD.LINE    // FFFFFV
+{
+	IN_F col
+	IN_F x1
+	IN_F y1
+	IN_F x2
+	IN_F y2	
+	
+	DATA8 col_8
+	DATA16 x1_16
+	DATA16 y1_16
+	DATA16 x2_16
+	DATA16 y2_16		
+	MOVEF_8 col col_8
+	MOVEF_16 x1 x1_16
+	MOVEF_16 y1 y1_16
+	MOVEF_16 x2 x2_16
+	MOVEF_16 y2 y2_16
+	
+	UI_DRAW(LINE,col_8,x1_16,y1_16,x2_16,y2_16)
+	
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall LCD.RECT      // FFFFFV
+{
+	IN_F col
+	IN_F x
+	IN_F y
+	IN_F w
+	IN_F h	
+	
+	DATA8 col_8
+	DATA16 x_16
+	DATA16 y_16
+	DATA16 w_16
+	DATA16 h_16	
+	MOVEF_8 col col_8
+	MOVEF_16 x x_16
+	MOVEF_16 y y_16
+	MOVEF_16 w w_16
+	MOVEF_16 h h_16
+	
+	UI_DRAW RECT,col_8,x_16,y_16,w_16,h_16
+	
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall LCD.FILLRECT      // FFFFFV
+{
+	IN_F col
+	IN_F x
+	IN_F y
+	IN_F w
+	IN_F h	
+	
+	DATA8 col_8
+	DATA16 x_16
+	DATA16 y_16
+	DATA16 w_16
+	DATA16 h_16	
+	MOVEF_8 col col_8
+	MOVEF_16 x x_16
+	MOVEF_16 y y_16
+	MOVEF_16 w w_16
+	MOVEF_16 h h_16
+	
+	UI_DRAW FILLRECT,col_8,x_16,y_16,w_16,h_16
+	
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall ARRAYCREATE_FLOAT   // F
+{
+	OUT_16 handle
+	
+	ARRAY CREATEF 8 handle			// create with 8 elements
+	ARRAY FILL handle 0.0
+}

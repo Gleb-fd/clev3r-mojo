@@ -1,0 +1,20 @@
+gv_i = 0
+Motor.Invert ( "A" )
+LCD.Clear ()
+Motor.Start ( "AB" , 50 )
+for gv_i = 0 to 7
+LCD.Write ( 0 , gv_i * 16 , Motor.GetSpeed ( "A" ) + ":" + Motor.GetCount ( "A" ) )
+LCD.Write ( 100 , gv_i * 16 , Motor.GetSpeed ( "B" ) + ":" + Motor.GetCount ( "B" ) )
+Program.Delay ( 200 )
+endfor
+Motor.Stop ( "AB" , "False" )
+Program.Delay ( 3000 )
+LCD.Clear ()
+Motor.StartSteer ( "AB" , 70 , - 25 )
+for gv_i = 0 to 7
+LCD.Write ( 0 , gv_i * 16 , Motor.GetSpeed ( "A" ) + ":" + Motor.GetCount ( "A" ) )
+LCD.Write ( 100 , gv_i * 16 , Motor.GetSpeed ( "B" ) + ":" + Motor.GetCount ( "B" ) )
+Program.Delay ( 200 )
+endfor
+Motor.Stop ( "AB" , "False" )
+Program.Delay ( 3000 )

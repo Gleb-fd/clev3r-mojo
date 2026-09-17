@@ -1,0 +1,25 @@
+gv_x = 0
+gv_y = 0
+gv_k = ""
+gv_x = 80
+gv_y = 64
+While "True"
+gv_k = Buttons.Current
+If Text.IsSubText ( "L" , gv_k ) then
+gv_x = gv_x - 1
+ElseIf Text.IsSubText ( "R" , gv_k ) then
+gv_x = gv_x + 1
+ElseIf Text.IsSubText ( "U" , gv_k ) then
+gv_y = gv_y - 1
+ElseIf Text.IsSubText ( "D" , gv_k ) then
+gv_y = gv_y + 1
+ElseIf Text.IsSubText ( "E" , gv_k ) then
+Program.End ()
+endif
+LCD.StopUpdate ()
+LCD.Clear ()
+LCD.Text ( 1 , 0 , 0 , 1 , "Use directional buttons ..." )
+LCD.FillCircle ( 1 , gv_x , gv_y , 20 )
+LCD.Update ()
+Program.Delay ( 10 )
+EndWhile

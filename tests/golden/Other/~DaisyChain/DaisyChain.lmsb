@@ -1,0 +1,433 @@
+DATA16 FD_NATIVECODECOMMAND
+DATA16 FD_NATIVECODERESPONSE
+DATA32 STOPLCDUPDATE
+DATA32 NUMMAILBOXES
+ARRAY8 MOTORISINVERTED 4     
+ARRAY8 FIRSTOF2  16
+ARRAY16 LOCKS 2           
+DATA32 s1out1
+DATA32 s1out2
+DATA32 s1out3
+DATA32 s2out1
+DATA32 s2out2
+DATA32 s2out3
+DATA32 s3out1
+DATA32 s3out2
+DATA32 s3out3
+DATA32 s4out1
+DATA32 s4out2
+DATA32 s4out3
+DATA32 getTachoA
+DATA32 tmpTachoA
+DATA8 getSpeedA
+DATA8 setSpeedA
+DATA8 setPowerA
+DATA32 getTachoB
+DATA32 tmpTachoB
+DATA8 getSpeedB
+DATA8 setSpeedB
+DATA8 setPowerB
+DATA32 getTachoC
+DATA32 tmpTachoC
+DATA8 getSpeedC
+DATA8 setSpeedC
+DATA8 setPowerC
+DATA32 getTachoD
+DATA32 tmpTachoD
+DATA8 getSpeedD
+DATA8 setSpeedD
+DATA8 setPowerD
+DATA16 newArray1d
+DATA32 newSize1d
+DATA32 newIndex1d
+DATA32 timeMC1
+DATA32 timeMC2
+DATA32 timeMC3
+DATA32 timeMC4
+DATA32 timeMC5
+DATA32 timeMC6
+DATA32 timeMC7
+DATA32 timeMC8
+DATA32 timeMC9
+DATA32 timeMC1tmp
+DATA32 timeMC2tmp
+DATA32 timeMC3tmp
+DATA32 timeMC4tmp
+DATA32 timeMC5tmp
+DATA32 timeMC6tmp
+DATA32 timeMC7tmp
+DATA32 timeMC8tmp
+DATA32 timeMC9tmp
+DATAF VGV_L
+DATAF VGV_S
+DATAS VGV_M 252
+DATAF VGV_P
+DATAF VGV_X
+DATAF VGV_Y
+
+vmthread MAIN
+{
+    MOVE32_32 0 STOPLCDUPDATE
+    MOVE32_32 0 NUMMAILBOXES
+    OUTPUT_RESET 0 15
+
+	WRITE8 0 0 MOTORISINVERTED
+	WRITE8 0 1 MOTORISINVERTED
+	WRITE8 0 2 MOTORISINVERTED
+	WRITE8 0 3 MOTORISINVERTED
+	WRITE8 0 0 FIRSTOF2
+	WRITE8 0 1 FIRSTOF2
+	WRITE8 0 2 FIRSTOF2
+	WRITE8 1 3 FIRSTOF2
+	WRITE8 0 4 FIRSTOF2
+	WRITE8 1 5 FIRSTOF2
+	WRITE8 2 6 FIRSTOF2
+	WRITE8 0 7 FIRSTOF2
+	WRITE8 0 8 FIRSTOF2
+	WRITE8 1 9 FIRSTOF2
+	WRITE8 2 10 FIRSTOF2
+	WRITE8 0 11 FIRSTOF2
+	WRITE8 4 12 FIRSTOF2
+	WRITE8 0 13 FIRSTOF2
+	WRITE8 0 14 FIRSTOF2
+	WRITE8 0 15 FIRSTOF2
+    INPUT_DEVICE CLR_ALL -1
+    ARRAY CREATE8 0 LOCKS
+    MOVE32_32 0 s1out1
+	MOVE32_32 0 s1out2
+	MOVE32_32 0 s1out3
+    MOVE32_32 0 s2out1
+	MOVE32_32 0 s2out2
+	MOVE32_32 0 s2out3
+    MOVE32_32 0 s3out1
+	MOVE32_32 0 s3out2
+	MOVE32_32 0 s3out3
+    MOVE32_32 0 s4out1
+	MOVE32_32 0 s4out2
+	MOVE32_32 0 s4out3
+    MOVE32_32 0 timeMC1
+	MOVE32_32 0 timeMC2
+	MOVE32_32 0 timeMC3
+	MOVE32_32 0 timeMC4
+	MOVE32_32 0 timeMC5
+	MOVE32_32 0 timeMC6
+	MOVE32_32 0 timeMC7
+	MOVE32_32 0 timeMC8
+	MOVE32_32 0 timeMC9
+    MOVEF_F 0.0 VGV_L
+    MOVEF_F 0.0 VGV_S
+    STRINGS DUPLICATE '' VGV_M
+    MOVEF_F 0.0 VGV_P
+    MOVEF_F 0.0 VGV_X
+    MOVEF_F 0.0 VGV_Y
+    ARRAY CREATE8 1 LOCKS
+    CALL PROGRAM_MAIN -1
+    PROGRAM_STOP -1
+}
+subcall PROGRAM_MAIN
+{
+    IN_32 SUBPROGRAM
+    DATA32 INDEX
+    ARRAY8 STACKPOINTER 4
+    DATAF F.0
+    DATAF F.1
+    DATAF F.2
+    ARRAY32 RETURNSTACK2 128
+    ARRAY32 RETURNSTACK 128
+    DATAS S.0 252
+    DATAS S.1 252
+    MOVE8_8 0 STACKPOINTER
+    MOVEF_F 0.0 VGV_L
+    MOVEF_F 0.0 VGV_S
+    STRINGS DUPLICATE '' VGV_M
+    MOVEF_F 0.0 VGV_P
+    MOVEF_F 0.0 VGV_X
+    MOVEF_F 0.0 VGV_Y
+  while0:
+  whilebody0:
+    MOVE32_32 1 STOPLCDUPDATE
+    CALL LCD.CLEAR
+    CALL LCD.TEXT 1.0 0.0 2.0 1.0 'Plug touch sensors to'
+    CALL LCD.TEXT 1.0 0.0 14.0 1.0 'the daisy chain bricks'
+    CALL LCD.TEXT 1.0 0.0 26.0 1.0 'to control the motors'
+    MOVEF_F 1.0 VGV_L
+  for6:
+    JR_GTF VGV_L 4.0 endfor6
+  forbody6:
+    MOVEF_F 1.0 VGV_S
+  for7:
+    JR_GTF VGV_S 4.0 endfor7
+  forbody7:
+    ADDF 64.0 VGV_S F.0
+    CALL TEXT.GETCHARACTER F.0 S.0
+    STRINGS VALUE_FORMATTED VGV_L '%g' 99 S.1
+    CALL TEXT.APPEND S.0 S.1 VGV_M
+    SUBF VGV_L 1.0 F.2
+    MULF F.2 4.0 F.1
+    ADDF VGV_S F.1 F.0
+    CALL SENSOR.READPERCENT F.0 VGV_P
+    MULF VGV_S 40.0 F.0
+    SUBF F.0 30.0 VGV_X
+    MULF VGV_L 20.0 F.0
+    ADDF F.0 25.0 VGV_Y
+    JR_LTEQF VGV_P 50.0 else20_1
+    CALL LCD.FILLRECT 1.0 VGV_X VGV_Y 30.0 18.0
+    ADDF VGV_X 2.0 F.0
+    ADDF VGV_Y 5.0 F.1
+    STRINGS VALUE_FORMATTED VGV_P '%g' 99 S.0
+    CALL LCD.TEXT 1.0 F.0 F.1 1.0 S.0
+    CALL MOTOR.START VGV_M 50.0
+    JR endif20
+  else20_1:
+    CALL LCD.RECT 1.0 VGV_X VGV_Y 30.0 18.0
+    ADDF VGV_X 10.0 F.0
+    ADDF VGV_Y 5.0 F.1
+    STRINGS VALUE_FORMATTED VGV_P '%g' 99 S.0
+    CALL LCD.TEXT 1.0 F.0 F.1 1.0 S.0
+    CALL MOTOR.STOP VGV_M 'true'
+  else20_2:
+  endif20:
+    ADDF VGV_S 1.0 VGV_S
+    JR_LTEQF VGV_S 4.0 forbody7
+  endfor7:
+    ADDF VGV_L 1.0 VGV_L
+    JR_LTEQF VGV_L 4.0 forbody6
+  endfor6:
+    MOVE32_32 0 STOPLCDUPDATE
+	UI_DRAW UPDATE
+    DATA32 milliseconds36
+	MOVEF_32 100.0 milliseconds36
+	DATA32 timer36
+	TIMER_WAIT milliseconds36 timer36
+	TIMER_READY timer36
+    JR whilebody0
+  endwhile0:
+ENDTHREAD:
+    RETURN
+}
+subcall LCD.CLEAR   // V
+{
+	UI_DRAW(TOPLINE,0)
+	UI_DRAW(CLEAN)
+	
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall LCD.TEXT     // FFFFSV
+{
+	IN_F col
+	IN_F x
+	IN_F y
+	IN_F font
+	IN_S text 252
+	
+	DATA8 col_8
+	DATA16 x_16
+	DATA16 y_16
+	DATA8 font_8	
+	MOVEF_8 col col_8
+	MOVEF_16 x x_16
+	MOVEF_16 y y_16
+	MOVEF_8 font font_8
+	
+	UI_DRAW SELECT_FONT font_8
+	UI_DRAW TEXT col_8 x_16 y_16 text
+
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall TEXT.GETCHARACTER   // FS
+{
+	IN_F c_f
+	OUT_S result 2
+	
+	DATA32 c	
+	MOVEF_32 c_f c
+		
+   	STRINGS DUPLICATE ' ' result
+
+	JR_LT32 c,1,unsupported
+	JR_GT32 c,255,unsupported	
+	
+	MOVE32_8 c result
+	RETURN
+  unsupported:
+	MOVE8_8 1 result
+}
+subcall TEXT.APPEND     // SSS
+{
+	IN_S a 252
+	IN_S b 252
+    OUT_S result 252
+	
+	DATA16 len0
+	DATA16 len1
+	DATA16 sum
+
+	STRINGS GET_SIZE a len0
+	STRINGS GET_SIZE b len1
+	ADD16 len0,len1,sum
+	JR_GT16 sum,251,stringsizeexceeded
+
+	STRINGS ADD a b result
+	RETURN
+	
+stringsizeexceeded:	
+    STRINGS DUPLICATE a result
+}
+subcall SENSOR.READPERCENT       // FF
+{
+	IN_F port
+	OUT_F result
+
+	DATA8 layer
+	DATA8 no
+	DATA8 percentage
+
+	MOVEF_8 port no
+	SUB8 no 1 no
+	DIV8 no 4 layer
+	MATH MOD8 no 4 no
+
+	INPUT_READ layer no 0 -1 percentage
+	JR_LT8 percentage 0 novalue
+	
+	MOVE8_F percentage result
+	RETURN
+novalue:	
+	MOVE8_F 0 result
+}
+subcall LCD.FILLRECT      // FFFFFV
+{
+	IN_F col
+	IN_F x
+	IN_F y
+	IN_F w
+	IN_F h	
+	
+	DATA8 col_8
+	DATA16 x_16
+	DATA16 y_16
+	DATA16 w_16
+	DATA16 h_16	
+	MOVEF_8 col col_8
+	MOVEF_16 x x_16
+	MOVEF_16 y y_16
+	MOVEF_16 w w_16
+	MOVEF_16 h h_16
+	
+	UI_DRAW FILLRECT,col_8,x_16,y_16,w_16,h_16
+	
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall MOTOR.START      // SFV     MOTORDECODEPORTSDESCRIPTOR
+{
+	IN_S ports 8
+	IN_F speed
+
+	DATA8 layer
+	DATA8 nos	
+
+	CALL MOTORDECODEPORTSDESCRIPTOR ports layer nos
+	JR_EQ8 nos 0 noport
+
+	JR_GTEQF speed -100.0 nottoosmall
+	MOVEF_F -100.0 speed
+nottoosmall:
+	JR_LTEQF speed 100.0 nottoobig
+	MOVEF_F 100.0 speed
+nottoobig:
+
+	DATA8 spd
+	MOVEF_8 speed spd
+
+    OUTPUT_TIME_SPEED layer nos spd 0 2147483647 0 0
+noport:
+}
+subcall MOTORDECODEPORTSDESCRIPTOR  //  V
+{
+	IN_S descriptor 8
+	OUT_8 layer
+	OUT_8 nos
+
+	DATA8 i 
+	DATA8 c
+
+	MOVE8_8 0 layer
+	MOVE8_8 0 nos	
+	MOVE8_8 0 i
+loop:
+	READ8 descriptor i c
+	JR_EQ8 c 0 decoding_end
+	
+	JR_LT8 c 65 no_uppercase_port
+	JR_GT8 c 68 no_uppercase_port
+	SUB8 c 65 c
+	RL8  1 c c
+	OR8  nos c nos
+	JR loop_end
+no_uppercase_port:
+	JR_LT8 c 97 no_lowercase_port
+	JR_GT8 c 100 no_lowercase_port
+	SUB8 c 97 c
+	RL8  1 c c
+	OR8  nos c nos	
+	JR loop_end
+no_lowercase_port:
+	JR_LT8 c 49 loop_end
+	JR_GT8 c 52 loop_end
+	SUB8 c 49 layer
+loop_end:
+	ADD8 1 i i
+	JR loop	
+	
+decoding_end:
+	RETURN
+}
+subcall LCD.RECT      // FFFFFV
+{
+	IN_F col
+	IN_F x
+	IN_F y
+	IN_F w
+	IN_F h	
+	
+	DATA8 col_8
+	DATA16 x_16
+	DATA16 y_16
+	DATA16 w_16
+	DATA16 h_16	
+	MOVEF_8 col col_8
+	MOVEF_16 x x_16
+	MOVEF_16 y y_16
+	MOVEF_16 w w_16
+	MOVEF_16 h h_16
+	
+	UI_DRAW RECT,col_8,x_16,y_16,w_16,h_16
+	
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall MOTOR.STOP       // SSV      MOTORDECODEPORTSDESCRIPTOR
+{
+	IN_S ports 8
+	IN_S brake 8
+
+	DATA8 layer
+	DATA8 nos	
+	DATA8 brk
+	
+	CALL MOTORDECODEPORTSDESCRIPTOR ports layer nos
+	JR_EQ8 nos 0 noport
+
+	AND8888_32 brake -538976289 brake        // AND 0xdfdfdfdf performs an upcase for 4 letters
+    STRINGS COMPARE brake 'TRUE' brk	
+	
+	OUTPUT_STOP layer nos brk
+noport:
+}

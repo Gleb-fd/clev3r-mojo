@@ -1,0 +1,19 @@
+gv_f = 0
+Motor.Start ( "A" , 50 )
+While "True"
+If Sensor.ReadPercent ( 1 ) < 15 then
+Motor.Stop ( "A" , "True" )
+endif
+If Sensor.ReadPercent ( 2 ) = 100 Then
+Motor.Start ( "A" , 50 )
+endif
+gv_f = Math.Remainder ( Math.Floor ( EV3.Time / 3000 ) , 3 )
+If gv_f = 0 Then
+EV3.SetLEDColor ( "RED" , "NORMAL" )
+ElseIf gv_f = 1 then
+EV3.SetLEDColor ( "ORANGE" , "NORMAL" )
+ElseIf gv_f = 2 then
+EV3.SetLEDColor ( "GREEN" , "NORMAL" )
+endif
+Program.Delay ( 10 )
+EndWhile

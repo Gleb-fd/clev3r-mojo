@@ -1,0 +1,17 @@
+lv_fontcolor_1 = 0
+lv_x_1 = 0
+lv_y_1 = 0
+lv_fontsize_1 = 0
+lv_message_1 = ""
+lv_fontcolor_1 = 1
+lv_x_1 = 0
+lv_y_1 = 0
+lv_fontsize_1 = 2
+lv_message_1 = "HELLO"
+f_writetoscreen_5 ()
+Program.Delay ( 5000 )
+Sub f_writetoscreen_5
+LCD.Clear ()
+LCD.Text ( lv_fontcolor_1 , lv_x_1 , lv_y_1 , lv_fontsize_1 , lv_message_1 )
+LCD.Update ()
+EndSub

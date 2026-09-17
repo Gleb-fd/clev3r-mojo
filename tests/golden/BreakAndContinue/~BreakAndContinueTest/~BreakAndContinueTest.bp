@@ -1,0 +1,34 @@
+gv_y = 0
+gv_i = 0
+gv_j = 0
+gv_b = 0
+gv_y = 0
+For gv_i = 0 To 10 Step 1
+If gv_i = 5 Then
+Goto break_1
+EndIf
+For gv_j = 0 To 10 Step 1
+If gv_j < 7 Then
+Goto continue_2
+Else
+Goto break_3
+EndIf
+continue_2:
+EndFor
+break_3:
+While "True"
+If gv_y > 10 Then
+Goto break_5
+Else
+gv_y = gv_y + 1
+EndIf
+EndWhile
+break_5:
+For gv_b = 0 To 10 Step 1
+If gv_b = 7 Then
+Goto break_4
+EndIf
+EndFor
+break_4:
+EndFor
+break_1:

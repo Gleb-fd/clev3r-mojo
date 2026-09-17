@@ -1,0 +1,56 @@
+gv_ticks [ 0 ] = 0
+gv_mutex = 0
+gv_i = 0
+gv_ticks = Vector.Init ( 4 , 0 )
+gv_mutex = Thread.CreateMutex ()
+Thread.Run = f_blinker_0
+Thread.Run = f_tick0_0
+Thread.Run = f_tick1_0
+Thread.Run = f_tick2_0
+f_tick3_0 ()
+Sub f_show_0
+Thread.Lock ( gv_mutex )
+LCD.StopUpdate ()
+LCD.Clear ()
+For gv_i = 0 to 3
+LCD.Text ( 1 , 20 , 10 + 25 * gv_i , 2 , "Tick" + gv_ticks [ gv_i ] )
+Endfor
+LCD.Update ()
+Thread.Unlock ( gv_mutex )
+EndSub
+Sub f_blinker_0
+While "true"
+EV3.SetLEDColor ( "ORANGE" , "NORMAL" )
+Program.Delay ( 500 )
+EV3.SetLEDColor ( "OFF" , "NORMAL" )
+Program.Delay ( 500 )
+EndWhile
+EndSub
+Sub f_tick0_0
+While "true"
+gv_ticks [ 0 ] = gv_ticks [ 0 ] + 1
+f_show_0 ()
+Program.Delay ( 750 )
+EndWhile
+EndSub
+Sub f_tick1_0
+While "true"
+gv_ticks [ 1 ] = gv_ticks [ 1 ] + 1
+f_show_0 ()
+Program.Delay ( 1000 )
+EndWhile
+EndSub
+Sub f_tick2_0
+While "true"
+gv_ticks [ 2 ] = gv_ticks [ 2 ] + 1
+f_show_0 ()
+Program.Delay ( 1200 )
+EndWhile
+EndSub
+Sub f_tick3_0
+While "true"
+gv_ticks [ 3 ] = gv_ticks [ 3 ] + 1
+f_show_0 ()
+Program.Delay ( 1500 )
+EndWhile
+EndSub

@@ -1,0 +1,21 @@
+gv_x = 0
+gv_value = 0
+gv_znach = 0
+gv_azimut = 0
+gv_x = 0
+gv_value = 0
+gv_znach = 0
+gv_azimut = 0
+gv_value = Sensor.ReadI2CRegister ( 1 , 1 , 66 )
+gv_znach = gv_azimut - gv_value + 180
+If gv_znach >= 0 Then
+gv_x = gv_znach
+gv_znach = Math.Ceiling ( gv_znach / 360 )
+gv_znach = gv_x - gv_znach
+Else
+gv_x = - 1 - gv_znach
+gv_znach = Math.Ceiling ( gv_znach / 360 )
+gv_znach = gv_x - gv_znach
+gv_znach = 359 - gv_znach
+EndIf
+gv_znach = gv_znach - 180

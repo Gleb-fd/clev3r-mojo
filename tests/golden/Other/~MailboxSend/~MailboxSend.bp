@@ -1,0 +1,5 @@
+Mailbox.Connect ( "Bob" )
+Mailbox.Send ( "Bob" , "Box" , "Hi!" )
+Program.Delay ( 1000 )
+Mailbox.Send ( "Bob" , "Box" , "Goodbye." )
+Program.Delay ( 1000 )

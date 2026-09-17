@@ -1,0 +1,11 @@
+gv_value1 = 0
+gv_valuer = 0
+gv_valueg = 0
+gv_valueb = 0
+Sensor.SetMode ( 1 , 0 )
+gv_value1 = Sensor1.Raw1 ()
+Sensor.SetMode ( 1 , 4 )
+gv_valuer = 0
+gv_valueg = 0
+gv_valueb = 0
+Sensor1.Raw3 ( gv_valuer , gv_valueg , gv_valueb )

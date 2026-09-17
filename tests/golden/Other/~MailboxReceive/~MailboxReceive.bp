@@ -1,0 +1,8 @@
+gv_id = 0
+gv_msg = ""
+gv_id = Mailbox.Create ( "Box" )
+While "True"
+gv_msg = Mailbox.Receive ( gv_id )
+LCD.Clear ()
+LCD.Write ( 0 , 40 , gv_msg )
+EndWhile

@@ -1,0 +1,11 @@
+gv_arr = 0
+gv_value = 0
+gv_size = 0
+gv_arr = Row.Init ( 10 , 5 )
+Row.Write ( gv_arr , 3 , 10000 )
+gv_value = Row.Read ( gv_arr , 7 )
+gv_size = Row.Size ( gv_arr )
+Row.Resize ( gv_arr , 20 )
+Row.Delete ( gv_arr )
+gv_value = Row.Read ( gv_arr , 9 )
+gv_size = Row.Size ( gv_arr )

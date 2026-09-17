@@ -1,0 +1,19 @@
+gv_small [ 0 ] = 0
+gv_big [ 0 ] = 0
+LCD.Clear ()
+gv_small = Vector.Init ( 5 , 141 )
+gv_big = Vector.Init ( 500 , 17 )
+Thread.Run = f_sub2_0
+Program.Delay ( 20 )
+Thread.Run = f_sub1_0
+Program.Delay ( 100000 )
+Sub f_sub1_0
+LCD.Text ( 1 , 0 , 12 , 1 , "Small sort starting" )
+gv_a = Vector.Sort ( 5 , gv_small )
+LCD.Text ( 1 , 0 , 24 , 1 , "Small sort finished" )
+EndSub
+Sub f_sub2_0
+LCD.Text ( 1 , 0 , 48 , 1 , "Big sort starting" )
+gv_a = Vector.Sort ( 500 , gv_big )
+LCD.Text ( 1 , 0 , 60 , 1 , "Big sort finished" )
+EndSub

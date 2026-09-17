@@ -1,0 +1,110 @@
+version = 1
+revision = 3
+requires-python = ">=3.14"
+
+[[package]]
+name = "clev3r-mojo"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "mojo" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "mojo", specifier = ">=1.1.0" }]
+
+[[package]]
+name = "click"
+version = "8.5.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c7/0e/7fa0ef50764b67090eca4114772a2abf8b6148198475e54c660b97caeee6/click-8.5.0.tar.gz", hash = "sha256:ba0d2089de75ea0310e2dde03160e6ca10009947fb95a182f9b54021bb272e34", size = 382235, upload-time = "2026-08-26T13:33:14.56Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/58/50/6c0d534c5f134586a8e1ba4e330569e32f057e33372ae556463212fb4cd3/click-8.5.0-py3-none-any.whl", hash = "sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360", size = 125251, upload-time = "2026-08-26T13:33:12.928Z" },
+]
+
+[[package]]
+name = "mblack"
+version = "26.6.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "mypy-extensions" },
+    { name = "pathspec" },
+    { name = "platformdirs" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8d/1e/69f18cd59c58c67224f5c3fa39cc17d1adc0649a064d8806eb7c350bebce/mblack-26.6.0-py3-none-any.whl", hash = "sha256:4edda4c1bd7d75d03709280777ff3bbdeb92891568340029015fd39f213120e0", size = 164080, upload-time = "2026-09-17T15:44:28.048Z" },
+]
+
+[[package]]
+name = "mojo"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "mblack" },
+    { name = "mojo-compiler" },
+    { name = "mojo-lldb-libs" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/68/e9/f535cccbb05c92c92af9b45f719994dd54c78d1c9964392dc6e15a3c345d/mojo-1.1.0-py3-none-macosx_13_0_arm64.whl", hash = "sha256:b913389621a243725253872b4815f49fb98a7708d3214816de7fd6e72bf2a25d", size = 35818554, upload-time = "2026-09-17T15:45:27.923Z" },
+    { url = "https://files.pythonhosted.org/packages/22/99/ce31f21811ed70c7499ed4db6780af0c0ea51833ae7214f696977d3f451b/mojo-1.1.0-py3-none-manylinux_2_34_aarch64.whl", hash = "sha256:318d467ccdcef9caef1a77792758806672b59881f90fc2e820e71bd59de041e2", size = 47669798, upload-time = "2026-09-17T15:45:34.551Z" },
+    { url = "https://files.pythonhosted.org/packages/dd/c0/4118df04da5776700839642477bdda0b1f906a99c69c8f2f94d4aea9fef4/mojo-1.1.0-py3-none-manylinux_2_34_x86_64.whl", hash = "sha256:aa95383d960d2d7a8738117ed808df745fa5fc92d24566ac73e775a8defe832d", size = 48859714, upload-time = "2026-09-17T15:45:23.812Z" },
+]
+
+[[package]]
+name = "mojo-compiler"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "mojo-compiler-mojo-libs" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7e/47/4ee8cf2041538076d1a11bb3c2b3ed18791b52c1edec8e31ca244d841389/mojo_compiler-1.1.0-py3-none-macosx_13_0_arm64.whl", hash = "sha256:02daffdfd8fcd56ecfb74e93d2adfaf4551cbb0b384094508fd00c1d5d81cb00", size = 72376758, upload-time = "2026-09-17T15:45:39.852Z" },
+    { url = "https://files.pythonhosted.org/packages/67/1c/2c93f967615e3581b124b1b5f4af29913994199e8741736d9c08ed3d9f13/mojo_compiler-1.1.0-py3-none-manylinux_2_34_aarch64.whl", hash = "sha256:14ed7fe3570e1374a88bc8aa93dc4e9c519ea28e7f8d731ae4bf1c468d8179ec", size = 77790801, upload-time = "2026-09-17T15:44:25.242Z" },
+    { url = "https://files.pythonhosted.org/packages/e8/5e/31522e5336d63ab0fad18980cccf6c5cc2085c1a041ea3723eb916a17c08/mojo_compiler-1.1.0-py3-none-manylinux_2_34_x86_64.whl", hash = "sha256:b47442278eb39705075f23d058b38a364bd68bdaa542ad514c187cee633beab7", size = 80657416, upload-time = "2026-09-17T15:45:02.119Z" },
+]
+
+[[package]]
+name = "mojo-compiler-mojo-libs"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/83/8d/4fb2147d140b6ea688f6d256b3119d6554a3d50095d802f01bf24234bd7d/mojo_compiler_mojo_libs-1.1.0-py3-none-any.whl", hash = "sha256:dd8c5382e27fe5c1ffe0834d267f549abbffee35bf1a8d605cf24252ff95a2e6", size = 3216162, upload-time = "2026-09-17T15:45:19.27Z" },
+]
+
+[[package]]
+name = "mojo-lldb-libs"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7b/29/1b39441a9932fc273bb689fc2246edf3ab536fd8bacb8ac46ab367f369b4/mojo_lldb_libs-1.1.0-py3-none-macosx_13_0_arm64.whl", hash = "sha256:788860810bdbabc636a18b464cb378087d98821ac4ca068d8bd52f38423eff09", size = 90694681, upload-time = "2026-09-17T15:46:24.293Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/f7/ca628dab5ba5a9c5fc995d671fef1f9344d5684bd041372670a49846fbe2/mojo_lldb_libs-1.1.0-py3-none-manylinux_2_34_aarch64.whl", hash = "sha256:0bd5e3636c3444f2c88583127c8e9d9500016fe450a97096aac4ee2108325ce3", size = 90623810, upload-time = "2026-09-17T15:45:46.53Z" },
+    { url = "https://files.pythonhosted.org/packages/93/f3/abf242879fe2f26809faa351bfb52d0746c25dde78796c3c5b5443355ea5/mojo_lldb_libs-1.1.0-py3-none-manylinux_2_34_x86_64.whl", hash = "sha256:782ff566b14100634a717d5b59602e6b310f4480107e391047db31d14f3497aa", size = 93562266, upload-time = "2026-09-17T15:44:34.126Z" },
+]
+
+[[package]]
+name = "mypy-extensions"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a2/6e/371856a3fb9d31ca8dac321cda606860fa4548858c0cc45d9d1d4ca2628b/mypy_extensions-1.1.0.tar.gz", hash = "sha256:52e68efc3284861e772bbcd66823fde5ae21fd2fdb51c62a211403730b916558", size = 6343, upload-time = "2025-04-22T14:54:24.164Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/79/7b/2c79738432f5c924bef5071f933bcc9efd0473bac3b4aa584a6f7c1c8df8/mypy_extensions-1.1.0-py3-none-any.whl", hash = "sha256:1be4cccdb0f2482337c4743e60421de3a356cd97508abadd57d47403e94f5505", size = 4963, upload-time = "2025-04-22T14:54:22.983Z" },
+]
+
+[[package]]
+name = "pathspec"
+version = "1.1.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/5a/82/42f767fc1c1143d6fd36efb827202a2d997a375e160a71eb2888a925aac1/pathspec-1.1.1.tar.gz", hash = "sha256:17db5ecd524104a120e173814c90367a96a98d07c45b2e10c2f3919fff91bf5a", size = 135180, upload-time = "2026-04-27T01:46:08.907Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f1/d9/7fb5aa316bc299258e68c73ba3bddbc499654a07f151cba08f6153988714/pathspec-1.1.1-py3-none-any.whl", hash = "sha256:a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189", size = 57328, upload-time = "2026-04-27T01:46:07.06Z" },
+]
+
+[[package]]
+name = "platformdirs"
+version = "4.11.9"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/58/b9/8adc4e1b422b27fd88540ec7bf1f406f77ef393ec070e26fc430e914cde8/platformdirs-4.11.9.tar.gz", hash = "sha256:e2c66a8d384596cd98e3c4aea2d761df7bac95d9d8a2cc3946daa8cdafdaebc1", size = 38345, upload-time = "2026-09-16T13:31:45.259Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f3/94/803ba86705257d7eedddac4b02eb88a7483b1600e9200c1fefc6f1a9a3ff/platformdirs-4.11.9-py3-none-any.whl", hash = "sha256:0a3958f58a9e30321eaef0a424dd0b77cce242886b36b8aa992f9731ef2d59c1", size = 24472, upload-time = "2026-09-16T13:31:44.049Z" },
+]

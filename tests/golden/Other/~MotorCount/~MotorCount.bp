@@ -1,0 +1,28 @@
+gv_m = ""
+gv_samples = 0
+gv_positions [ 0 ] = 0
+gv_times [ 0 ] = 0
+gv_start = 0
+gv_i = 0
+gv_now = 0
+gv_m = "A"
+gv_samples = 178
+gv_positions = Vector.Init ( gv_samples , 0 )
+gv_times = Vector.Init ( gv_samples , 0 )
+Motor.ResetCount ( gv_m )
+Motor.SchedulePower ( gv_m , 100 , 0 , 110 , 0 , "True" )
+gv_start = EV3.Time
+For gv_i = 0 To gv_samples - 1
+gv_now = EV3.Time - gv_start
+While gv_now < gv_i
+gv_now = EV3.Time - gv_start
+EndWhile
+gv_positions [ gv_i ] = Motor.GetCount ( gv_m )
+gv_times [ gv_i ] = gv_now
+Endfor
+LCD.Clear ()
+For gv_i = 0 To gv_samples - 1
+LCD.Pixel ( 1 , gv_i , gv_positions [ gv_i ] )
+LCD.Pixel ( 1 , gv_i , 128 - gv_times [ gv_i ] )
+endfor
+Program.Delay ( 100000 )

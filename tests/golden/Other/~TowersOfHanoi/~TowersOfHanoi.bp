@@ -1,0 +1,52 @@
+gv_tower [ 0 ] = ""
+gv_i = 0
+gv_j = 0
+gv_w = 0
+gv_a = 0
+gv_b = 0
+gv_n = 0
+gv_l = 0
+gv_newb = ""
+gv_tower [ 0 ] = "JIHGFEDCBA"
+gv_tower [ 1 ] = ""
+gv_tower [ 2 ] = ""
+f_draw_0 ()
+gv_a = 0
+gv_b = 2
+gv_n = 10
+f_move_0 ()
+Program.Delay ( 1000000 )
+Sub f_move_0
+If gv_n = 1 Then
+f_move1_0 ()
+Elseif gv_n > 1 Then
+gv_n = gv_n - 1
+gv_b = 3 - gv_a - gv_b
+f_move_0 ()
+gv_b = 3 - gv_a - gv_b
+f_move1_0 ()
+gv_a = 3 - gv_a - gv_b
+f_move_0 ()
+gv_a = 3 - gv_a - gv_b
+gv_n = gv_n + 1
+EndIf
+EndSub
+Sub f_move1_0
+Program.Delay ( 1000 )
+gv_l = Text.GetLength ( gv_tower [ gv_a ] )
+gv_newb = gv_tower [ gv_b ] + Text.GetSubText ( gv_tower [ gv_a ] , gv_l , 1 )
+gv_tower [ gv_b ] = gv_newb
+gv_tower [ gv_a ] = Text.GetSubText ( gv_tower [ gv_a ] , 1 , gv_l - 1 )
+f_draw_0 ()
+EndSub
+Sub f_draw_0
+LCD.StopUpdate ()
+LCD.Clear ()
+For gv_i = 0 To 7
+For gv_j = 1 To Text.GetLength ( gv_tower [ gv_i ] )
+gv_w = 10 + 4 * ( Text.GetCharacterCode ( Text.GetSubText ( gv_tower [ gv_i ] , gv_j , 1 ) ) - 64 )
+LCD.FillRect ( 1 , gv_i * 60 + 30 - gv_w / 2 , 126 - gv_j * 11 , gv_w , 10 )
+EndFor
+EndFor
+LCD.Update ()
+EndSub

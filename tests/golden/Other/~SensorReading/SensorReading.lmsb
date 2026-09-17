@@ -1,0 +1,588 @@
+DATA16 FD_NATIVECODECOMMAND
+DATA16 FD_NATIVECODERESPONSE
+DATA32 STOPLCDUPDATE
+DATA32 NUMMAILBOXES
+ARRAY8 MOTORISINVERTED 4     
+ARRAY8 FIRSTOF2  16
+ARRAY16 LOCKS 2           
+DATA32 s1out1
+DATA32 s1out2
+DATA32 s1out3
+DATA32 s2out1
+DATA32 s2out2
+DATA32 s2out3
+DATA32 s3out1
+DATA32 s3out2
+DATA32 s3out3
+DATA32 s4out1
+DATA32 s4out2
+DATA32 s4out3
+DATA32 getTachoA
+DATA32 tmpTachoA
+DATA8 getSpeedA
+DATA8 setSpeedA
+DATA8 setPowerA
+DATA32 getTachoB
+DATA32 tmpTachoB
+DATA8 getSpeedB
+DATA8 setSpeedB
+DATA8 setPowerB
+DATA32 getTachoC
+DATA32 tmpTachoC
+DATA8 getSpeedC
+DATA8 setSpeedC
+DATA8 setPowerC
+DATA32 getTachoD
+DATA32 tmpTachoD
+DATA8 getSpeedD
+DATA8 setSpeedD
+DATA8 setPowerD
+DATA16 newArray1d
+DATA32 newSize1d
+DATA32 newIndex1d
+DATA32 timeMC1
+DATA32 timeMC2
+DATA32 timeMC3
+DATA32 timeMC4
+DATA32 timeMC5
+DATA32 timeMC6
+DATA32 timeMC7
+DATA32 timeMC8
+DATA32 timeMC9
+DATA32 timeMC1tmp
+DATA32 timeMC2tmp
+DATA32 timeMC3tmp
+DATA32 timeMC4tmp
+DATA32 timeMC5tmp
+DATA32 timeMC6tmp
+DATA32 timeMC7tmp
+DATA32 timeMC8tmp
+DATA32 timeMC9tmp
+DATAF VGV_SELECTMODE
+ARRAY16 VGV_RAW 2
+DATAF VGV_I
+DATAS VGV_CLICK 252
+
+vmthread MAIN
+{
+    MOVE32_32 0 STOPLCDUPDATE
+    MOVE32_32 0 NUMMAILBOXES
+    OUTPUT_RESET 0 15
+
+	WRITE8 0 0 MOTORISINVERTED
+	WRITE8 0 1 MOTORISINVERTED
+	WRITE8 0 2 MOTORISINVERTED
+	WRITE8 0 3 MOTORISINVERTED
+	WRITE8 0 0 FIRSTOF2
+	WRITE8 0 1 FIRSTOF2
+	WRITE8 0 2 FIRSTOF2
+	WRITE8 1 3 FIRSTOF2
+	WRITE8 0 4 FIRSTOF2
+	WRITE8 1 5 FIRSTOF2
+	WRITE8 2 6 FIRSTOF2
+	WRITE8 0 7 FIRSTOF2
+	WRITE8 0 8 FIRSTOF2
+	WRITE8 1 9 FIRSTOF2
+	WRITE8 2 10 FIRSTOF2
+	WRITE8 0 11 FIRSTOF2
+	WRITE8 4 12 FIRSTOF2
+	WRITE8 0 13 FIRSTOF2
+	WRITE8 0 14 FIRSTOF2
+	WRITE8 0 15 FIRSTOF2
+    INPUT_DEVICE CLR_ALL -1
+    ARRAY CREATE8 0 LOCKS
+    MOVE32_32 0 s1out1
+	MOVE32_32 0 s1out2
+	MOVE32_32 0 s1out3
+    MOVE32_32 0 s2out1
+	MOVE32_32 0 s2out2
+	MOVE32_32 0 s2out3
+    MOVE32_32 0 s3out1
+	MOVE32_32 0 s3out2
+	MOVE32_32 0 s3out3
+    MOVE32_32 0 s4out1
+	MOVE32_32 0 s4out2
+	MOVE32_32 0 s4out3
+    MOVE32_32 0 timeMC1
+	MOVE32_32 0 timeMC2
+	MOVE32_32 0 timeMC3
+	MOVE32_32 0 timeMC4
+	MOVE32_32 0 timeMC5
+	MOVE32_32 0 timeMC6
+	MOVE32_32 0 timeMC7
+	MOVE32_32 0 timeMC8
+	MOVE32_32 0 timeMC9
+    MOVEF_F 0.0 VGV_SELECTMODE
+    CALL ARRAYCREATE_FLOAT VGV_RAW
+    MOVEF_F 0.0 VGV_I
+    STRINGS DUPLICATE '' VGV_CLICK
+    ARRAY CREATE8 1 LOCKS
+    CALL PROGRAM_MAIN -1
+    PROGRAM_STOP -1
+}
+subcall PROGRAM_MAIN
+{
+    IN_32 SUBPROGRAM
+    DATA32 INDEX
+    ARRAY8 STACKPOINTER 4
+    DATAF F.0
+    DATAF F.1
+    DATAF F.2
+    ARRAY32 RETURNSTACK2 128
+    ARRAY32 RETURNSTACK 128
+    DATAS S.0 252
+    DATAS S.1 252
+    DATAS S.2 252
+    DATAS S.3 252
+    DATAS S.4 252
+    DATAS S.5 252
+    DATAS S.6 252
+    MOVE8_8 0 STACKPOINTER
+    MOVEF_F 0.0 VGV_SELECTMODE
+    CALL ARRAYSTORE_FLOAT 0.0 0.0 VGV_RAW
+    MOVEF_F 0.0 VGV_I
+    STRINGS DUPLICATE '' VGV_CLICK
+    MOVEF_F 0.0 VGV_SELECTMODE
+    DATA8 layer1
+	DATA8 no1
+	DATA8 mode81
+	
+	MOVEF_8 1.0 no1
+	SUB8 no1 1 no1
+	DIV8 no1 4 layer1
+	MATH MOD8 no1 4 no1
+
+	MOVEF_8 VGV_SELECTMODE mode81
+	
+	INPUT_DEVICE READY_RAW layer1 no1 0 mode81 0
+  while2:
+  whilebody2:
+    MOVE32_32 1 STOPLCDUPDATE
+    CALL LCD.CLEAR
+    CALL SENSOR.GETNAME 1.0 S.0
+    CALL LCD.WRITE 0.0 0.0 S.0
+    CALL SENSOR.GETTYPE 1.0 F.0
+    STRINGS VALUE_FORMATTED F.0 '%g' 99 S.6
+    CALL TEXT.APPEND 'MODE: ' S.6 S.5
+    CALL TEXT.APPEND S.5 ':' S.4
+    CALL SENSOR.GETMODE 1.0 F.0
+    STRINGS VALUE_FORMATTED F.0 '%g' 99 S.5
+    CALL TEXT.APPEND S.4 S.5 S.3
+    CALL TEXT.APPEND S.3 ' (' S.2
+    STRINGS VALUE_FORMATTED VGV_SELECTMODE '%g' 99 S.3
+    CALL TEXT.APPEND S.2 S.3 S.1
+    CALL TEXT.APPEND S.1 ')' S.0
+    CALL LCD.WRITE 0.0 16.0 S.0
+    CALL SENSOR.READPERCENT 1.0 F.0
+    STRINGS VALUE_FORMATTED F.0 '%g' 99 S.1
+    CALL TEXT.APPEND 'PERCENT: ' S.1 S.0
+    CALL LCD.WRITE 0.0 32.0 S.0
+    CALL SENSOR.READRAW 1.0 8.0 VGV_RAW
+    MOVEF_F 0.0 VGV_I
+  for24:
+    JR_GTF VGV_I 3.0 endfor24
+  forbody24:
+    MULF VGV_I 16.0 F.1
+    ADDF 64.0 F.1 F.0
+    STRINGS VALUE_FORMATTED VGV_I '%g' 99 S.3
+    CALL TEXT.APPEND 'RAW' S.3 S.2
+    CALL TEXT.APPEND S.2 ':' S.1
+    CALL ARRAYGET_FLOAT VGV_I F.1 VGV_RAW
+    STRINGS VALUE_FORMATTED F.1 '%g' 99 S.2
+    CALL TEXT.APPEND S.1 S.2 S.0
+    CALL LCD.WRITE 0.0 F.0 S.0
+    ADDF VGV_I 1.0 VGV_I
+    JR_LTEQF VGV_I 3.0 forbody24
+  endfor24:
+    MOVEF_F 4.0 VGV_I
+  for35:
+    JR_GTF VGV_I 7.0 endfor35
+  forbody35:
+    SUBF VGV_I 4.0 F.2
+    MULF F.2 16.0 F.1
+    ADDF 64.0 F.1 F.0
+    STRINGS VALUE_FORMATTED VGV_I '%g' 99 S.3
+    CALL TEXT.APPEND 'RAW' S.3 S.2
+    CALL TEXT.APPEND S.2 ':' S.1
+    CALL ARRAYGET_FLOAT VGV_I F.1 VGV_RAW
+    STRINGS VALUE_FORMATTED F.1 '%g' 99 S.2
+    CALL TEXT.APPEND S.1 S.2 S.0
+    CALL LCD.WRITE 80.0 F.0 S.0
+    ADDF VGV_I 1.0 VGV_I
+    JR_LTEQF VGV_I 7.0 forbody35
+  endfor35:
+    MOVE32_32 0 STOPLCDUPDATE
+	UI_DRAW UPDATE
+    DATA32 milliseconds48
+	MOVEF_32 200.0 milliseconds48
+	DATA32 timer48
+	TIMER_WAIT milliseconds48 timer48
+	TIMER_READY timer48
+    CALL BUTTONS.GETCLICKS VGV_CLICK
+    CALL TEXT.ISSUBTEXT VGV_CLICK 'U' S.0
+    AND8888_32 S.0 -538976289 S.0
+    STRINGS COMPARE S.0 'TRUE' S.0
+    JR_EQ8 S.0 0 else50_1
+    ADDF VGV_SELECTMODE 1.0 VGV_SELECTMODE
+    DATA8 layer53
+	DATA8 no53
+	DATA8 mode853
+	
+	MOVEF_8 1.0 no53
+	SUB8 no53 1 no53
+	DIV8 no53 4 layer53
+	MATH MOD8 no53 4 no53
+
+	MOVEF_8 VGV_SELECTMODE mode853
+	
+	INPUT_DEVICE READY_RAW layer53 no53 0 mode853 0
+    JR endif50
+  else50_1:
+    CALL TEXT.ISSUBTEXT VGV_CLICK 'D' S.0
+    AND8888_32 S.0 -538976289 S.0
+    STRINGS COMPARE S.0 'TRUE' S.0
+    JR_EQ8 S.0 0 else50_2
+    SUBF VGV_SELECTMODE 1.0 VGV_SELECTMODE
+    DATA8 layer56
+	DATA8 no56
+	DATA8 mode856
+	
+	MOVEF_8 1.0 no56
+	SUB8 no56 1 no56
+	DIV8 no56 4 layer56
+	MATH MOD8 no56 4 no56
+
+	MOVEF_8 VGV_SELECTMODE mode856
+	
+	INPUT_DEVICE READY_RAW layer56 no56 0 mode856 0
+    JR endif50
+  else50_2:
+    CALL TEXT.ISSUBTEXT VGV_CLICK 'E' S.0
+    AND8888_32 S.0 -538976289 S.0
+    STRINGS COMPARE S.0 'TRUE' S.0
+    JR_EQ8 S.0 0 else50_3
+    DATA8 layer58
+	DATA8 no58
+	DATA8 mode858
+	
+	MOVEF_8 1.0 no58
+	SUB8 no58 1 no58
+	DIV8 no58 4 layer58
+	MATH MOD8 no58 4 no58
+
+	MOVEF_8 VGV_SELECTMODE mode858
+	
+	INPUT_DEVICE READY_RAW layer58 no58 0 mode858 0
+  else50_3:
+  endif50:
+    JR whilebody2
+  endwhile2:
+ENDTHREAD:
+    RETURN
+}
+subcall ARRAYSTORE_FLOAT   // FFFV
+{
+	IN_F index
+	IN_F value	
+	IN_16 handle
+	
+	DATA32 index32
+	DATA32 len	
+	MOVEF_32 index index32
+
+	ARRAY SIZE handle len
+	JR_LT32 index32 0 negativeindex
+	JR_LT32 index32 len arraybigenough
+
+increasesize:	
+	DATA32 doublelen
+	ADD32 len len doublelen
+	ARRAY RESIZE handle doublelen
+writeloop:	
+	ARRAY_WRITE handle len 0.0
+	ADD32 len 1 len
+	JR_LT32 len doublelen writeloop
+	JR_GTEQ32 index32 len increasesize
+	
+arraybigenough:
+	ARRAY_WRITE handle index32 value
+negativeindex:
+}
+subcall LCD.CLEAR   // V
+{
+	UI_DRAW(TOPLINE,0)
+	UI_DRAW(CLEAN)
+	
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall SENSOR.GETNAME		// FS
+{
+	IN_F port
+	OUT_S result 32
+	
+	DATA8 layer
+	DATA8 no
+	
+	MOVEF_8 port no
+	SUB8 no 1 no
+	DIV8 no 4 layer
+	MATH MOD8 no 4 no
+	
+	INPUT_DEVICE GET_NAME layer no 32 result
+	STRINGS STRIP result result
+}
+subcall LCD.WRITE     // FFSV
+{
+	IN_F x
+	IN_F y
+	IN_S text 252
+	
+	DATA16 x_16
+	DATA16 y_16
+	MOVEF_16 x x_16
+	MOVEF_16 y y_16
+	
+	UI_DRAW SELECT_FONT 1
+	UI_DRAW TEXT 1 x_16 y_16 text
+
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall SENSOR.GETTYPE		// FF
+{
+	IN_F port
+	OUT_F result
+	
+	DATA8 layer
+	DATA8 no
+	DATA8 type
+	DATA8 mode
+	
+	MOVEF_8 port no
+	SUB8 no 1 no
+	DIV8 no 4 layer
+	MATH MOD8 no 4 no
+	
+	INPUT_DEVICE GET_TYPEMODE layer no type mode
+	MOVE8_F type result
+}
+subcall TEXT.APPEND     // SSS
+{
+	IN_S a 252
+	IN_S b 252
+    OUT_S result 252
+	
+	DATA16 len0
+	DATA16 len1
+	DATA16 sum
+
+	STRINGS GET_SIZE a len0
+	STRINGS GET_SIZE b len1
+	ADD16 len0,len1,sum
+	JR_GT16 sum,251,stringsizeexceeded
+
+	STRINGS ADD a b result
+	RETURN
+	
+stringsizeexceeded:	
+    STRINGS DUPLICATE a result
+}
+subcall SENSOR.GETMODE		// FF
+{
+	IN_F port
+	OUT_F result
+	
+	DATA8 layer
+	DATA8 no
+	DATA8 type
+	DATA8 mode
+	
+	MOVEF_8 port no
+	SUB8 no 1 no
+	DIV8 no 4 layer
+	MATH MOD8 no 4 no
+	
+	INPUT_DEVICE GET_TYPEMODE layer no type mode
+	MOVE8_F mode result
+}
+subcall SENSOR.READPERCENT       // FF
+{
+	IN_F port
+	OUT_F result
+
+	DATA8 layer
+	DATA8 no
+	DATA8 percentage
+
+	MOVEF_8 port no
+	SUB8 no 1 no
+	DIV8 no 4 layer
+	MATH MOD8 no 4 no
+
+	INPUT_READ layer no 0 -1 percentage
+	JR_LT8 percentage 0 novalue
+	
+	MOVE8_F percentage result
+	RETURN
+novalue:	
+	MOVE8_F 0 result
+}
+subcall SENSOR.READRAW            // FFA
+{
+	IN_F port
+	IN_F values
+	IN_16 resultarray
+	
+	DATA8 layer
+	DATA8 no
+	DATA32 values32
+		
+	MOVEF_8 port no
+	SUB8 no 1 no
+	DIV8 no 4 layer
+	MATH MOD8 no 4 no
+
+	MOVEF_32 values values32
+
+	JR_LTEQ32 values32 0 arrayempty
+	ARRAY RESIZE resultarray values32
+
+	DATA32 rawvalue0
+	DATA32 rawvalue1
+	DATA32 rawvalue2
+	DATA32 rawvalue3
+	DATA32 rawvalue4
+	DATA32 rawvalue5
+	DATA32 rawvalue6
+	DATA32 rawvalue7
+	INPUT_READEXT layer no 0 -1 18 8 rawvalue0 rawvalue1 rawvalue2 rawvalue3 rawvalue4 rawvalue5 rawvalue6 rawvalue7
+	
+	DATA32 i
+	DATA32 rawtmp
+	MOVE32_32 0 i
+loop:
+	DATA8 tmp8
+	DATAF tmpf
+
+	MOVEF_F 0.0 tmpf
+	JR_GTEQ32 i 8 nomoredata
+
+	MOVE32_8 i tmp8
+	READ32 rawvalue0 tmp8 rawtmp
+	JR_LT32 rawtmp -1000000000 nomoredata
+	MOVE32_F rawtmp tmpf
+
+nomoredata:	
+	ARRAY_WRITE resultarray i tmpf
+
+	ADD32 i 1 i
+	JR_LT32 i values32 loop
+	RETURN
+
+arrayempty:
+	ARRAY RESIZE resultarray 0
+}
+subcall ARRAYGET_FLOAT     // FFF
+{
+	IN_F index
+	OUT_F value
+	IN_16 handle
+	
+	DATA32 index32
+	DATA32 len
+	MOVEF_32 index index32
+	
+	ARRAY SIZE handle len
+	JR_LT32 index32 0 outofbounds
+	JR_GTEQ32 index32 len outofbounds
+	
+	ARRAY_READ handle index32 value
+	RETURN
+outofbounds:
+	MOVE8_F 0 value	
+}
+subcall BUTTONS.GETCLICKS      // S
+{
+	OUT_S result 8
+
+	DATA8 isclicked
+	
+	STRINGS DUPLICATE '' result	
+	
+	UI_BUTTON SHORTPRESS 1 isclicked
+	JR_EQ8 isclicked 0 not_up
+	STRINGS ADD result 'U' result
+not_up:
+	UI_BUTTON SHORTPRESS 2 isclicked
+	JR_EQ8 isclicked 0 not_enter
+	STRINGS ADD result 'E' result
+not_enter:
+	UI_BUTTON SHORTPRESS 3 isclicked
+	JR_EQ8 isclicked 0 not_down
+	STRINGS ADD result 'D' result
+not_down:	
+	UI_BUTTON SHORTPRESS 4 isclicked
+	JR_EQ8 isclicked 0 not_right
+	STRINGS ADD result 'R' result
+not_right:
+	UI_BUTTON SHORTPRESS 5 isclicked
+	JR_EQ8 isclicked 0 not_left
+	STRINGS ADD result 'L' result
+not_left:	
+
+	RETURN
+}
+subcall TEXT.ISSUBTEXT   // SSS
+{
+	IN_S a  252
+	IN_S b  252
+	OUT_S result 8
+	DATAS MEMORY 252  // starts at 512
+
+	DATA16 la
+	DATA16 lb
+	DATA16 diff
+	DATA8 flag
+	
+	STRINGS GET_SIZE a la
+	STRINGS GET_SIZE b lb
+	JR_LTEQ16 lb 0 notfound   // empty search string
+	JR_GT16 lb la notfound  // search string is bigger than a
+	SUB16 la lb diff        // size difference
+	
+	DATAS c 252
+	STRINGS DUPLICATE b c    // prepare temporary string to have correct size
+	STRINGS DUPLICATE a MEMORY  // put a into addressable memory
+
+	DATA32 index
+	DATA32 endindex
+	DATA32 size
+	MOVE16_32 512 index
+	MOVE16_32 diff endindex
+	ADD32 endindex 512 endindex
+	MOVE16_32 lb size
+loop:	
+	MEMORY_READ 1 TEXT.ISSUBTEXT index size c
+	STRINGS COMPARE b c flag
+	JR_EQ8 flag 0 nothere
+	
+	STRINGS DUPLICATE 'True' result
+	RETURN
+	
+nothere:	
+	ADD32 index,1,index
+	JR_LTEQ32 index endindex loop
+	
+notfound:	
+	STRINGS DUPLICATE 'False' result
+}
+subcall ARRAYCREATE_FLOAT   // F
+{
+	OUT_16 handle
+	
+	ARRAY CREATEF 8 handle			// create with 8 elements
+	ARRAY FILL handle 0.0
+}

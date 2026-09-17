@@ -1,0 +1,26 @@
+gv_k = ""
+gv_sa = 0
+gv_sb = 0
+LCD.Clear ()
+LCD.Text ( 1 , 0 , 30 , 1 , "Control motors with" )
+LCD.Text ( 1 , 0 , 45 , 1 , "directional buttons" )
+LCD.Text ( 1 , 0 , 70 , 1 , "Left/Right: Motor A" )
+LCD.Text ( 1 , 0 , 85 , 1 , "Up/Down: Motor B" )
+while "True"
+gv_k = Buttons.Current
+gv_sa = 0
+gv_sb = 0
+If Text.IsSubText ( gv_k , "L" ) then
+gv_sa = - 50
+elseif Text.IsSubText ( gv_k , "R" ) then
+gv_sa = 50
+endif
+If Text.IsSubText ( gv_k , "U" ) then
+gv_sb = - 50
+elseif Text.IsSubText ( gv_k , "D" ) then
+gv_sb = 50
+endif
+Motor.StartPower ( "A" , gv_sa )
+Motor.StartPower ( "B" , gv_sb )
+Program.Delay ( 100 )
+Endwhile

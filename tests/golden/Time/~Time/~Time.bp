@@ -1,0 +1,3 @@
+gv_var = 0
+gv_var = Time.Get1 ()
+Time.Reset1 ()

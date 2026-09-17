@@ -1,0 +1,22 @@
+gv_lv_fontcolor_1 = 0
+gv_lv_x_1 = 0
+gv_lv_y_1 = 0
+gv_lv_fontsize_1 = 0
+gv_lv_message_1 = ""
+gv_lv_fontcolor_1 = 0
+gv_lv_x_1 = 0
+gv_lv_y_1 = 0
+gv_lv_fontsize_1 = 0
+gv_lv_message_1 = ""
+gv_lv_fontcolor_1 = 1
+gv_lv_x_1 = 0
+gv_lv_y_1 = 0
+gv_lv_fontsize_1 = 2
+gv_lv_message_1 = "HELLO"
+f_f_writetoscreen_5_0 ()
+Program.Delay ( 5000 )
+Sub f_f_writetoscreen_5_0
+LCD.Clear ()
+LCD.Text ( gv_lv_fontcolor_1 , gv_lv_x_1 , gv_lv_y_1 , gv_lv_fontsize_1 , gv_lv_message_1 )
+LCD.Update ()
+EndSub

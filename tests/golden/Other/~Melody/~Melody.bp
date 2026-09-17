@@ -1,0 +1,26 @@
+gv_v = 0
+gv_t = 0
+gv_v = 30
+gv_t = 380
+Speaker.Tone ( gv_v , 262 , gv_t )
+Speaker.Wait ()
+Speaker.Note ( gv_v , "C4" , gv_t )
+While Speaker.IsBusy ()
+Program.Delay ( 2 )
+endwhile
+Speaker.Note ( gv_v , "E4" , gv_t )
+Speaker.Wait ()
+Speaker.Note ( gv_v , "G4" , gv_t )
+Speaker.Wait ()
+Speaker.Note ( gv_v , "G4" , gv_t )
+Speaker.Wait ()
+Program.Delay ( gv_t )
+Speaker.Note ( gv_v , "G4" , gv_t )
+Speaker.Wait ()
+Speaker.Note ( gv_v , "G4" , gv_t )
+Speaker.Wait ()
+Program.Delay ( gv_t )
+Speaker.Note ( gv_v , "E4" , gv_t )
+Speaker.Wait ()
+Speaker.Note ( gv_v , "E4" , gv_t )
+Speaker.Wait ()

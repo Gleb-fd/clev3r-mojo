@@ -1,0 +1,35 @@
+gv_selectmode = 0
+gv_i = 0
+gv_name = ""
+gv_type = 0
+gv_mode = 0
+gv_ready = ""
+gv_val = 0
+gv_click = ""
+gv_selectmode = 0
+Sensor.SetMode ( 1 , gv_selectmode )
+While "True"
+LCD.StopUpdate ()
+LCD.Clear ()
+For gv_i = 1 To 4
+gv_name = Sensor.GetName ( gv_i )
+gv_type = Sensor.GetType ( gv_i )
+gv_mode = Sensor.GetMode ( gv_i )
+gv_ready = Sensor.IsBusy ( gv_i )
+gv_val = Sensor.ReadPercent ( gv_i )
+LCD.Text ( 1 , 0 , 32 * gv_i - 32 , 1 , gv_name + " " + gv_type + ":" + gv_mode )
+LCD.Text ( 1 , 16 , 32 * gv_i - 16 , 1 , gv_val + " " + gv_ready )
+endfor
+LCD.Update ()
+Program.Delay ( 200 )
+gv_click = Buttons.GetClicks ()
+If Text.IsSubText ( gv_click , "U" ) then
+gv_selectmode = gv_selectmode + 1
+Sensor.SetMode ( 1 , gv_selectmode )
+ElseIf Text.IsSubText ( gv_click , "D" ) then
+gv_selectmode = gv_selectmode - 1
+Sensor.SetMode ( 1 , gv_selectmode )
+ElseIf Text.IsSubText ( gv_click , "E" ) then
+Sensor.SetMode ( 1 , gv_selectmode )
+endif
+EndWhile

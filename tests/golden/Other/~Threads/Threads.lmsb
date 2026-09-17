@@ -1,0 +1,587 @@
+DATA16 FD_NATIVECODECOMMAND
+DATA16 FD_NATIVECODERESPONSE
+DATA32 STOPLCDUPDATE
+DATA32 NUMMAILBOXES
+ARRAY8 MOTORISINVERTED 4     
+ARRAY8 FIRSTOF2  16
+ARRAY16 LOCKS 2           
+DATA32 s1out1
+DATA32 s1out2
+DATA32 s1out3
+DATA32 s2out1
+DATA32 s2out2
+DATA32 s2out3
+DATA32 s3out1
+DATA32 s3out2
+DATA32 s3out3
+DATA32 s4out1
+DATA32 s4out2
+DATA32 s4out3
+DATA32 getTachoA
+DATA32 tmpTachoA
+DATA8 getSpeedA
+DATA8 setSpeedA
+DATA8 setPowerA
+DATA32 getTachoB
+DATA32 tmpTachoB
+DATA8 getSpeedB
+DATA8 setSpeedB
+DATA8 setPowerB
+DATA32 getTachoC
+DATA32 tmpTachoC
+DATA8 getSpeedC
+DATA8 setSpeedC
+DATA8 setPowerC
+DATA32 getTachoD
+DATA32 tmpTachoD
+DATA8 getSpeedD
+DATA8 setSpeedD
+DATA8 setPowerD
+DATA16 newArray1d
+DATA32 newSize1d
+DATA32 newIndex1d
+DATA32 timeMC1
+DATA32 timeMC2
+DATA32 timeMC3
+DATA32 timeMC4
+DATA32 timeMC5
+DATA32 timeMC6
+DATA32 timeMC7
+DATA32 timeMC8
+DATA32 timeMC9
+DATA32 timeMC1tmp
+DATA32 timeMC2tmp
+DATA32 timeMC3tmp
+DATA32 timeMC4tmp
+DATA32 timeMC5tmp
+DATA32 timeMC6tmp
+DATA32 timeMC7tmp
+DATA32 timeMC8tmp
+DATA32 timeMC9tmp
+ARRAY16 VGV_TICKS 2
+DATAF VGV_MUTEX
+DATAF VGV_I
+DATA32 RUNCOUNTER_F_BLINKER_0
+DATA32 RUNCOUNTER_F_TICK0_0
+DATA32 RUNCOUNTER_F_TICK1_0
+DATA32 RUNCOUNTER_F_TICK2_0
+
+vmthread MAIN
+{
+    MOVE32_32 0 STOPLCDUPDATE
+    MOVE32_32 0 NUMMAILBOXES
+    OUTPUT_RESET 0 15
+
+	WRITE8 0 0 MOTORISINVERTED
+	WRITE8 0 1 MOTORISINVERTED
+	WRITE8 0 2 MOTORISINVERTED
+	WRITE8 0 3 MOTORISINVERTED
+	WRITE8 0 0 FIRSTOF2
+	WRITE8 0 1 FIRSTOF2
+	WRITE8 0 2 FIRSTOF2
+	WRITE8 1 3 FIRSTOF2
+	WRITE8 0 4 FIRSTOF2
+	WRITE8 1 5 FIRSTOF2
+	WRITE8 2 6 FIRSTOF2
+	WRITE8 0 7 FIRSTOF2
+	WRITE8 0 8 FIRSTOF2
+	WRITE8 1 9 FIRSTOF2
+	WRITE8 2 10 FIRSTOF2
+	WRITE8 0 11 FIRSTOF2
+	WRITE8 4 12 FIRSTOF2
+	WRITE8 0 13 FIRSTOF2
+	WRITE8 0 14 FIRSTOF2
+	WRITE8 0 15 FIRSTOF2
+    INPUT_DEVICE CLR_ALL -1
+    ARRAY CREATE8 0 LOCKS
+    MOVE32_32 0 s1out1
+	MOVE32_32 0 s1out2
+	MOVE32_32 0 s1out3
+    MOVE32_32 0 s2out1
+	MOVE32_32 0 s2out2
+	MOVE32_32 0 s2out3
+    MOVE32_32 0 s3out1
+	MOVE32_32 0 s3out2
+	MOVE32_32 0 s3out3
+    MOVE32_32 0 s4out1
+	MOVE32_32 0 s4out2
+	MOVE32_32 0 s4out3
+    MOVE32_32 0 timeMC1
+	MOVE32_32 0 timeMC2
+	MOVE32_32 0 timeMC3
+	MOVE32_32 0 timeMC4
+	MOVE32_32 0 timeMC5
+	MOVE32_32 0 timeMC6
+	MOVE32_32 0 timeMC7
+	MOVE32_32 0 timeMC8
+	MOVE32_32 0 timeMC9
+    CALL ARRAYCREATE_FLOAT VGV_TICKS
+    MOVEF_F 0.0 VGV_MUTEX
+    MOVEF_F 0.0 VGV_I
+    MOVE32_32 0 RUNCOUNTER_F_BLINKER_0
+    MOVE32_32 0 RUNCOUNTER_F_TICK0_0
+    MOVE32_32 0 RUNCOUNTER_F_TICK1_0
+    MOVE32_32 0 RUNCOUNTER_F_TICK2_0
+    ARRAY CREATE8 1 LOCKS
+    CALL PROGRAM_MAIN -1
+    PROGRAM_STOP -1
+}
+vmthread TF_BLINKER_0
+{
+    DATA32 tmp
+  launch:
+    CALL PROGRAM_F_BLINKER_0 0
+    CALL GETANDINC32 RUNCOUNTER_F_BLINKER_0 -1 RUNCOUNTER_F_BLINKER_0 tmp
+    JR_GT32 tmp 1 launch
+}
+vmthread TF_TICK0_0
+{
+    DATA32 tmp
+  launch:
+    CALL PROGRAM_F_TICK0_0 1
+    CALL GETANDINC32 RUNCOUNTER_F_TICK0_0 -1 RUNCOUNTER_F_TICK0_0 tmp
+    JR_GT32 tmp 1 launch
+}
+vmthread TF_TICK1_0
+{
+    DATA32 tmp
+  launch:
+    CALL PROGRAM_F_TICK1_0 2
+    CALL GETANDINC32 RUNCOUNTER_F_TICK1_0 -1 RUNCOUNTER_F_TICK1_0 tmp
+    JR_GT32 tmp 1 launch
+}
+vmthread TF_TICK2_0
+{
+    DATA32 tmp
+  launch:
+    CALL PROGRAM_F_TICK2_0 3
+    CALL GETANDINC32 RUNCOUNTER_F_TICK2_0 -1 RUNCOUNTER_F_TICK2_0 tmp
+    JR_GT32 tmp 1 launch
+}
+subcall PROGRAM_MAIN
+subcall PROGRAM_F_BLINKER_0
+subcall PROGRAM_F_TICK0_0
+subcall PROGRAM_F_TICK1_0
+subcall PROGRAM_F_TICK2_0
+{
+    IN_32 SUBPROGRAM
+    DATA32 INDEX
+    ARRAY8 STACKPOINTER 4
+    DATAF F.0
+    DATAF F.1
+    ARRAY32 RETURNSTACK2 128
+    ARRAY32 RETURNSTACK 128
+    DATAS S.0 252
+    DATAS S.1 252
+    MOVE8_8 0 STACKPOINTER
+    JR_NEQ32 SUBPROGRAM 0 dispatch50
+    WRITE32 ENDSUB_F_BLINKER_0:ENDTHREAD STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_BLINKER_0
+  dispatch50:
+    JR_NEQ32 SUBPROGRAM 1 dispatch51
+    WRITE32 ENDSUB_F_TICK0_0:ENDTHREAD STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_TICK0_0
+  dispatch51:
+    JR_NEQ32 SUBPROGRAM 2 dispatch52
+    WRITE32 ENDSUB_F_TICK1_0:ENDTHREAD STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_TICK1_0
+  dispatch52:
+    JR_NEQ32 SUBPROGRAM 3 dispatch53
+    WRITE32 ENDSUB_F_TICK2_0:ENDTHREAD STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_TICK2_0
+  dispatch53:
+    CALL ARRAYSTORE_FLOAT 0.0 0.0 VGV_TICKS
+    MOVEF_F 0.0 VGV_MUTEX
+    MOVEF_F 0.0 VGV_I
+    CALL VECTOR.INIT 4.0 0.0 VGV_TICKS
+    CALL THREAD.CREATEMUTEX VGV_MUTEX
+    DATA32 tmp3
+    CALL GETANDINC32 RUNCOUNTER_F_BLINKER_0 1  RUNCOUNTER_F_BLINKER_0 tmp3
+    JR_NEQ32 0 tmp3 alreadylaunched3
+    OBJECT_START TF_BLINKER_0
+  alreadylaunched3:
+    DATA32 tmp4
+    CALL GETANDINC32 RUNCOUNTER_F_TICK0_0 1  RUNCOUNTER_F_TICK0_0 tmp4
+    JR_NEQ32 0 tmp4 alreadylaunched4
+    OBJECT_START TF_TICK0_0
+  alreadylaunched4:
+    DATA32 tmp5
+    CALL GETANDINC32 RUNCOUNTER_F_TICK1_0 1  RUNCOUNTER_F_TICK1_0 tmp5
+    JR_NEQ32 0 tmp5 alreadylaunched5
+    OBJECT_START TF_TICK1_0
+  alreadylaunched5:
+    DATA32 tmp6
+    CALL GETANDINC32 RUNCOUNTER_F_TICK2_0 1  RUNCOUNTER_F_TICK2_0 tmp6
+    JR_NEQ32 0 tmp6 alreadylaunched6
+    OBJECT_START TF_TICK2_0
+  alreadylaunched6:
+    WRITE32 ENDSUB_F_TICK3_0:CALLSUB7 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_TICK3_0
+CALLSUB7:
+ENDTHREAD:
+    RETURN
+SUB_F_SHOW_0:
+    DATA8 previous8
+  tryaquire8:
+	CALL GETANDSETLOCK VGV_MUTEX 1 previous8
+	JR_EQ8 0 previous8 success8
+	SLEEP
+	JR tryaquire8
+  success8:
+    MOVE32_32 1 STOPLCDUPDATE
+    CALL LCD.CLEAR
+    MOVEF_F 0.0 VGV_I
+  for11:
+    JR_GTF VGV_I 3.0 endfor11
+  forbody11:
+    MULF 25.0 VGV_I F.1
+    ADDF 10.0 F.1 F.0
+    CALL ARRAYGET_FLOAT VGV_I F.1 VGV_TICKS
+    STRINGS VALUE_FORMATTED F.1 '%g' 99 S.1
+    CALL TEXT.APPEND 'Tick' S.1 S.0
+    CALL LCD.TEXT 1.0 20.0 F.0 2.0 S.0
+    ADDF VGV_I 1.0 VGV_I
+    JR_LTEQF VGV_I 3.0 forbody11
+  endfor11:
+    MOVE32_32 0 STOPLCDUPDATE
+	UI_DRAW UPDATE
+    DATA8 dummy20
+	CALL GETANDSETLOCK VGV_MUTEX 0 dummy20
+RETSUB_F_SHOW_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_SHOW_0:
+SUB_F_BLINKER_0:
+  while21:
+  whilebody21:
+    CALL EV3.SETLEDCOLOR 'ORANGE' 'NORMAL'
+    DATA32 milliseconds23
+	MOVEF_32 500.0 milliseconds23
+	DATA32 timer23
+	TIMER_WAIT milliseconds23 timer23
+	TIMER_READY timer23
+    CALL EV3.SETLEDCOLOR 'OFF' 'NORMAL'
+    DATA32 milliseconds25
+	MOVEF_32 500.0 milliseconds25
+	DATA32 timer25
+	TIMER_WAIT milliseconds25 timer25
+	TIMER_READY timer25
+    JR whilebody21
+  endwhile21:
+RETSUB_F_BLINKER_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_BLINKER_0:
+SUB_F_TICK0_0:
+  while26:
+  whilebody26:
+    CALL ARRAYGET_FLOAT 0.0 F.1 VGV_TICKS
+    ADDF F.1 1.0 F.0
+    CALL ARRAYSTORE_FLOAT 0.0 F.0 VGV_TICKS
+    WRITE32 ENDSUB_F_SHOW_0:CALLSUB30 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_SHOW_0
+CALLSUB30:
+    DATA32 milliseconds31
+	MOVEF_32 750.0 milliseconds31
+	DATA32 timer31
+	TIMER_WAIT milliseconds31 timer31
+	TIMER_READY timer31
+    JR whilebody26
+  endwhile26:
+RETSUB_F_TICK0_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_TICK0_0:
+SUB_F_TICK1_0:
+  while32:
+  whilebody32:
+    CALL ARRAYGET_FLOAT 1.0 F.1 VGV_TICKS
+    ADDF F.1 1.0 F.0
+    CALL ARRAYSTORE_FLOAT 1.0 F.0 VGV_TICKS
+    WRITE32 ENDSUB_F_SHOW_0:CALLSUB36 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_SHOW_0
+CALLSUB36:
+    DATA32 milliseconds37
+	MOVEF_32 1000.0 milliseconds37
+	DATA32 timer37
+	TIMER_WAIT milliseconds37 timer37
+	TIMER_READY timer37
+    JR whilebody32
+  endwhile32:
+RETSUB_F_TICK1_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_TICK1_0:
+SUB_F_TICK2_0:
+  while38:
+  whilebody38:
+    CALL ARRAYGET_FLOAT 2.0 F.1 VGV_TICKS
+    ADDF F.1 1.0 F.0
+    CALL ARRAYSTORE_FLOAT 2.0 F.0 VGV_TICKS
+    WRITE32 ENDSUB_F_SHOW_0:CALLSUB42 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_SHOW_0
+CALLSUB42:
+    DATA32 milliseconds43
+	MOVEF_32 1200.0 milliseconds43
+	DATA32 timer43
+	TIMER_WAIT milliseconds43 timer43
+	TIMER_READY timer43
+    JR whilebody38
+  endwhile38:
+RETSUB_F_TICK2_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_TICK2_0:
+SUB_F_TICK3_0:
+  while44:
+  whilebody44:
+    CALL ARRAYGET_FLOAT 3.0 F.1 VGV_TICKS
+    ADDF F.1 1.0 F.0
+    CALL ARRAYSTORE_FLOAT 3.0 F.0 VGV_TICKS
+    WRITE32 ENDSUB_F_SHOW_0:CALLSUB48 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_SHOW_0
+CALLSUB48:
+    DATA32 milliseconds49
+	MOVEF_32 1500.0 milliseconds49
+	DATA32 timer49
+	TIMER_WAIT milliseconds49 timer49
+	TIMER_READY timer49
+    JR whilebody44
+  endwhile44:
+RETSUB_F_TICK3_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_TICK3_0:
+}
+subcall ARRAYSTORE_FLOAT   // FFFV
+{
+	IN_F index
+	IN_F value	
+	IN_16 handle
+	
+	DATA32 index32
+	DATA32 len	
+	MOVEF_32 index index32
+
+	ARRAY SIZE handle len
+	JR_LT32 index32 0 negativeindex
+	JR_LT32 index32 len arraybigenough
+
+increasesize:	
+	DATA32 doublelen
+	ADD32 len len doublelen
+	ARRAY RESIZE handle doublelen
+writeloop:	
+	ARRAY_WRITE handle len 0.0
+	ADD32 len 1 len
+	JR_LT32 len doublelen writeloop
+	JR_GTEQ32 index32 len increasesize
+	
+arraybigenough:
+	ARRAY_WRITE handle index32 value
+negativeindex:
+}
+subcall VECTOR.INIT       // FFA
+{
+	IN_F size
+	IN_F value
+	IN_16 a
+
+	DATA32 size32
+	MOVEF_32 size size32
+	JR_LTEQ32 size32 0 empty
+
+	ARRAY RESIZE a size32
+	ARRAY FILL a value
+	RETURN
+
+empty:
+    ARRAY RESIZE a 0
+}
+subcall THREAD.CREATEMUTEX	// F
+{
+	OUT_F index
+
+	DATA8 zero
+	MOVE8_8 0 zero
+
+	DATA32 idx
+	ARRAY SIZE LOCKS idx
+	ARRAY_APPEND LOCKS zero
+
+	MOVE32_F idx index
+}
+subcall GETANDSETLOCK           // V
+{
+	IN_F index						// index as float as being used in Basic. 
+	                                // when not valid do nothing and return newvalue as oldvalue (prevent aquiring lock)
+	IN_8  newvalue                  // set to this value
+	OUT_8 oldvalue                  // return previous value
+
+	DATA32 size
+	DATA32 idx
+	MOVEF_32 index idx
+	ARRAY SIZE LOCKS size
+	JR_LT32 idx 0 outofbounds
+	JR_GTEQ32 idx size outofbounds
+
+	ARRAY_READ LOCKS idx oldvalue
+	ARRAY_WRITE LOCKS idx newvalue
+	RETURN
+
+outofbounds:
+	MOVE8_8 newvalue oldvalue
+}
+subcall LCD.CLEAR   // V
+{
+	UI_DRAW(TOPLINE,0)
+	UI_DRAW(CLEAN)
+	
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall ARRAYGET_FLOAT     // FFF
+{
+	IN_F index
+	OUT_F value
+	IN_16 handle
+	
+	DATA32 index32
+	DATA32 len
+	MOVEF_32 index index32
+	
+	ARRAY SIZE handle len
+	JR_LT32 index32 0 outofbounds
+	JR_GTEQ32 index32 len outofbounds
+	
+	ARRAY_READ handle index32 value
+	RETURN
+outofbounds:
+	MOVE8_F 0 value	
+}
+subcall TEXT.APPEND     // SSS
+{
+	IN_S a 252
+	IN_S b 252
+    OUT_S result 252
+	
+	DATA16 len0
+	DATA16 len1
+	DATA16 sum
+
+	STRINGS GET_SIZE a len0
+	STRINGS GET_SIZE b len1
+	ADD16 len0,len1,sum
+	JR_GT16 sum,251,stringsizeexceeded
+
+	STRINGS ADD a b result
+	RETURN
+	
+stringsizeexceeded:	
+    STRINGS DUPLICATE a result
+}
+subcall LCD.TEXT     // FFFFSV
+{
+	IN_F col
+	IN_F x
+	IN_F y
+	IN_F font
+	IN_S text 252
+	
+	DATA8 col_8
+	DATA16 x_16
+	DATA16 y_16
+	DATA8 font_8	
+	MOVEF_8 col col_8
+	MOVEF_16 x x_16
+	MOVEF_16 y y_16
+	MOVEF_8 font font_8
+	
+	UI_DRAW SELECT_FONT font_8
+	UI_DRAW TEXT col_8 x_16 y_16 text
+
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall EV3.SETLEDCOLOR    // SSV
+{
+	IN_S color 8		// only receive first 7 characters
+	IN_S effect 8       // only receive first 7 characters
+	
+	ARRAY8 color_1 4	// split up to be able to do some operations with 4 bytes each
+	ARRAY8 color_2 4
+	ARRAY8 effect_1 4
+	ARRAY8 effect_2 4
+
+	STRINGS DUPLICATE color color_1
+	STRINGS DUPLICATE effect effect_1	
+	AND8888_32 color_1 -538976289 color_1        // AND 0xdfdfdfdf performs an upcase for 4 letters
+	AND8888_32 color_2 -538976289 color_2        // AND 0xdfdfdfdf performs an upcase for 4 letters
+	AND8888_32 effect_1 -538976289 effect_1      // AND 0xdfdfdfdf performs an upcase for 4 letters	
+	AND8888_32 effect_2 -538976289 effect_2      // AND 0xdfdfdfdf performs an upcase for 4 letters	
+	
+	DATA8 col
+	DATA8 flag
+	MOVE8_8 0 col
+	
+	STRINGS COMPARE color_1 'GREEN' flag
+	JR_EQ8 flag 0 notgreen
+	MOVE8_8 1 col
+	JR checkeffect
+notgreen:	
+	STRINGS COMPARE color_1 'RED' flag
+	JR_EQ8 flag 0 notred
+	MOVE8_8 2 col
+	JR checkeffect
+notred:	
+	STRINGS COMPARE color_1 'ORANGE' flag
+	JR_EQ8 flag 0 setcol
+	MOVE8_8 3 col
+checkeffect:
+	
+	STRINGS COMPARE effect_1 'FLASH' flag
+	JR_EQ8 flag 0 noflash
+	ADD8 col 3 col
+	JR setcol
+noflash:
+	STRINGS COMPARE effect_1 'PULSE' flag
+	JR_EQ8 flag 0 setcol
+	ADD8 col 6 col	
+	
+setcol:
+	UI_WRITE LED col
+}
+subcall ARRAYCREATE_FLOAT   // F
+{
+	OUT_16 handle
+	
+	ARRAY CREATEF 8 handle			// create with 8 elements
+	ARRAY FILL handle 0.0
+}
+subcall GETANDINC32     // V
+{
+	IN_32 counterin
+	IN_32 inc
+	OUT_32 counterout
+	OUT_32 prev
+
+	MOVE32_32 counterin prev
+	ADD32 counterin inc counterout
+}

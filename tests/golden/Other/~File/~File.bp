@@ -1,0 +1,25 @@
+gv_f = 0
+gv_a [ 0 ] = 0
+gv_b [ 0 ] = 0
+gv_f = EV3File.OpenWrite ( "data.txt" )
+EV3File.WriteByte ( gv_f , 47 )
+EV3File.WriteByte ( gv_f , 8 )
+EV3File.WriteLine ( gv_f , "so many words" )
+gv_a [ 0 ] = 4.6
+gv_a [ 1 ] = 7
+gv_a [ 2 ] = 66.3
+EV3File.WriteNumberArray ( gv_f , 3 , gv_a )
+EV3File.WriteLine ( gv_f , "the end" )
+EV3File.Close ( gv_f )
+gv_f = EV3File.OpenRead ( "data.txt" )
+LCD.Clear ()
+LCD.Write ( 10 , 10 , EV3File.ReadByte ( gv_f ) )
+LCD.Write ( 50 , 10 , EV3File.ReadByte ( gv_f ) )
+LCD.Write ( 10 , 30 , EV3File.ReadLine ( gv_f ) )
+gv_b = EV3File.ReadNumberArray ( gv_f , 3 )
+LCD.Write ( 10 , 50 , gv_b [ 0 ] )
+LCD.Write ( 10 , 65 , gv_b [ 1 ] )
+LCD.Write ( 10 , 80 , gv_b [ 2 ] )
+LCD.Write ( 10 , 100 , EV3File.ReadLine ( gv_f ) )
+EV3File.Close ( gv_f )
+Program.Delay ( 100000 )

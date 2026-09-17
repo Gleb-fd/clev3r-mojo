@@ -1,0 +1,220 @@
+gv_runtime [ 0 ] = 0
+gv_a [ 0 ] = 0
+gv_b [ 0 ] = 0
+gv_c [ 0 ] = 0
+gv_pi = 0
+gv_md_a [ 0 ] = 0
+gv_md_result = 0
+gv_y = 0
+gv_time0 = 0
+gv_i = 0
+gv_j = 0
+gv_k = 0
+gv_l = 0
+gv_m = 0
+gv_n = 0
+gv_o = 0
+gv_p = 0
+gv_q = 0
+gv_r = 0
+gv_s = 0
+gv_x = 0
+gv_la [ 0 ] = 0
+gv_lb [ 0 ] = 0
+gv_lo [ 0 ] = 0
+gv_lc [ 0 ] = 0
+gv_t [ 0 ] = 0
+gv_runtime = Vector.Init ( 8 , - 1 )
+gv_a = Vector.Init ( 500 , 0 )
+gv_b = Vector.Init ( 500 , 0 )
+gv_c = Vector.Init ( 500 , 0 )
+gv_pi = Math.PI
+gv_md_a = Vector.Init ( 0 , 0 )
+gv_md_result = 0
+LCD.Clear ()
+LCD.Text ( 1 , 0 , 10 , 1 , "hw brickbench" )
+LCD.Text ( 1 , 0 , 20 , 1 , "(C)H.Wunder 2013" )
+LCD.Text ( 1 , 0 , 30 , 1 , "EV3-Basic port: c0pperdragon" )
+LCD.Text ( 1 , 0 , 50 , 1 , "initializing..." )
+for gv_y = 0 To 499
+gv_a [ gv_y ] = Math.GetRandomNumber ( 30000 ) - 1
+gv_b [ gv_y ] = Math.GetRandomNumber ( 30000 ) - 1
+gv_c [ gv_y ] = Math.GetRandomNumber ( 30000 ) - 1
+endfor
+LCD.Clear ()
+gv_time0 = EV3.Time
+f_test_int_add_0 ()
+gv_runtime [ 0 ] = EV3.Time - gv_time0
+f_displayvalues_0 ()
+gv_time0 = EV3.Time
+f_test_int_mult_0 ()
+gv_runtime [ 1 ] = EV3.Time - gv_time0
+f_displayvalues_0 ()
+gv_time0 = EV3.Time
+f_test_float_math_0 ()
+gv_runtime [ 2 ] = EV3.Time - gv_time0
+f_displayvalues_0 ()
+gv_time0 = EV3.Time
+gv_runtime [ 3 ] = EV3.Time - gv_time0
+f_displayvalues_0 ()
+gv_time0 = EV3.Time
+f_test_matrix_math_0 ()
+gv_runtime [ 4 ] = EV3.Time - gv_time0
+f_displayvalues_0 ()
+gv_time0 = EV3.Time
+f_test_sort_0 ()
+gv_runtime [ 5 ] = EV3.Time - gv_time0
+f_displayvalues_0 ()
+gv_time0 = EV3.Time
+f_test_textout_0 ()
+gv_runtime [ 6 ] = EV3.Time - gv_time0
+f_displayvalues_0 ()
+gv_time0 = EV3.Time
+f_test_graphics_0 ()
+gv_runtime [ 7 ] = EV3.Time - gv_time0
+f_displayvalues_0 ()
+gv_y = 0
+For gv_x = 0 To 7
+gv_y = gv_y + gv_runtime [ gv_x ]
+endfor
+LCD.Text ( 1 , 0 , 95 , 1 , "total ms: " + gv_y )
+LCD.Text ( 1 , 0 , 105 , 1 , "benchmark: " + ( 50000000 / gv_y ) )
+Buttons.Flush ()
+Buttons.Wait ()
+Sub f_matrixdet2x2_0
+gv_md_result = gv_md_a [ 0 * 2 + 0 ] * gv_md_a [ 1 * 2 + 1 ] - gv_md_a [ 0 * 2 + 1 ] * gv_md_a [ 1 * 2 + 0 ]
+EndSub
+Sub f_matrixdet3x3_0
+gv_md_result = gv_md_a [ 0 * 3 + 0 ] * gv_md_a [ 1 * 3 + 1 ] * gv_md_a [ 2 * 3 + 2 ]
+gv_md_result = gv_md_result + gv_md_a [ 0 * 3 + 1 ] * gv_md_a [ 1 * 3 + 2 ] * gv_md_a [ 2 * 3 + 0 ]
+gv_md_result = gv_md_result + gv_md_a [ 0 * 3 + 2 ] * gv_md_a [ 1 * 3 + 0 ] * gv_md_a [ 2 * 3 + 1 ]
+gv_md_result = gv_md_result - gv_md_a [ 0 * 3 + 2 ] * gv_md_a [ 1 * 3 + 1 ] * gv_md_a [ 2 * 3 + 0 ]
+gv_md_result = gv_md_result - gv_md_a [ 0 * 3 + 1 ] * gv_md_a [ 1 * 3 + 0 ] * gv_md_a [ 2 * 3 + 2 ]
+gv_md_result = gv_md_result - gv_md_a [ 0 * 3 + 0 ] * gv_md_a [ 1 * 3 + 2 ] * gv_md_a [ 2 * 3 + 1 ]
+EndSub
+SUB f_test_int_add_0
+gv_i = 1
+gv_j = 11
+gv_k = 112
+gv_l = 1111
+gv_m = 11111
+gv_n = - 1
+gv_o = - 11
+gv_p = - 111
+gv_q = - 1112
+gv_r = - 11111
+gv_s = 0
+For gv_x = 0 to 9999
+gv_s = gv_s + gv_i
+gv_s = gv_s + gv_j
+gv_s = gv_s + gv_k
+gv_s = gv_s + gv_l
+gv_s = gv_s + gv_m
+gv_s = gv_s + gv_n
+gv_s = gv_s + gv_o
+gv_s = gv_s + gv_p
+gv_s = gv_s + gv_q
+gv_s = gv_s + gv_r
+endfor
+ENDSUB
+SUB f_test_int_mult_0
+for gv_y = 0 To 1999
+gv_s = 1
+for gv_x = 1 to 13
+gv_s = gv_s * gv_x
+endfor
+for gv_x = 13 to 1 step - 1
+gv_s = gv_s / gv_x
+endfor
+endfor
+ENDSUB
+SUB f_test_float_math_0
+gv_s = Math.PI
+for gv_y = 1 To 1000
+gv_s = gv_s * Math.SquareRoot ( gv_s )
+gv_s = Math.Sin ( gv_s )
+gv_s = Math.Power ( 2.71828182846 , gv_s )
+gv_s = gv_s * gv_s
+endfor
+ENDSUB
+Sub f_test_matrix_math_0
+gv_la = Vector.Init ( 2 * 2 , 0 )
+gv_lb = Vector.Init ( 2 * 2 , 0 )
+gv_lo = Vector.Init ( 3 * 3 , 0 )
+for gv_x = 1 To 250
+gv_la [ 0 * 2 + 0 ] = 1
+gv_la [ 0 * 2 + 1 ] = 3
+gv_la [ 1 * 2 + 0 ] = 2
+gv_la [ 1 * 2 + 1 ] = 4
+gv_lb [ 0 * 2 + 0 ] = 10
+gv_lb [ 0 * 2 + 1 ] = 30
+gv_lb [ 1 * 2 + 0 ] = 20
+gv_lb [ 1 * 2 + 1 ] = 40
+gv_lc = Vector.Multiply ( 2 , 2 , 2 , gv_la , gv_lb )
+gv_la [ 0 * 2 + 0 ] = 1
+gv_la [ 0 * 2 + 1 ] = 3
+gv_la [ 1 * 2 + 0 ] = 2
+gv_la [ 1 * 2 + 1 ] = 4
+gv_md_a = gv_la
+f_matrixdet2x2_0 ()
+gv_lo [ 0 * 3 + 0 ] = 1
+gv_lo [ 0 * 3 + 1 ] = 4
+gv_lo [ 0 * 3 + 2 ] = 7
+gv_lo [ 1 * 3 + 0 ] = 2
+gv_lo [ 1 * 3 + 1 ] = 5
+gv_lo [ 1 * 3 + 2 ] = 8
+gv_lo [ 2 * 3 + 0 ] = 3
+gv_lo [ 2 * 3 + 1 ] = 6
+gv_lo [ 2 * 3 + 2 ] = 9
+gv_md_a = gv_lo
+f_matrixdet3x3_0 ()
+endfor
+gv_s = gv_lo [ 0 * 3 + 0 ] * gv_lo [ 1 * 3 + 1 ] * gv_lo [ 2 * 3 + 2 ]
+endsub
+SUB f_test_sort_0
+for gv_y = 1 To 30
+gv_t = Vector.Sort ( 500 , gv_a )
+gv_t = Vector.Sort ( 500 , gv_b )
+gv_t = Vector.Sort ( 500 , gv_c )
+EndFor
+endsub
+SUB f_test_textout_0
+for gv_y = 0 to 19
+LCD.StopUpdate ()
+LCD.Clear ()
+LCD.Text ( 1 , 0 , 10 , 1 , 0 + " " + 1000 + " int_Add" )
+LCD.Text ( 1 , 0 , 20 , 1 , 1 + " " + 1000 + " int_Mult" )
+LCD.Text ( 1 , 0 , 30 , 1 , 2 + " " + 1000 + " float_op" )
+LCD.Text ( 1 , 0 , 40 , 1 , 3 + " " + 1000 + " randomize" )
+LCD.Text ( 1 , 0 , 50 , 1 , 4 + " " + 1000 + " matrx_algb" )
+LCD.Text ( 1 , 0 , 60 , 1 , 5 + " " + 1000 + " arr_sort" )
+LCD.Text ( 1 , 0 , 70 , 1 , 6 + " " + 1000 + " displa_txt" )
+LCD.Text ( 1 , 0 , 80 , 1 , 7 + " " + 1000 + " testing..." )
+LCD.Update ()
+endfor
+EndSub
+SUB f_test_graphics_0
+for gv_y = 0 To 99
+LCD.StopUpdate ()
+LCD.Clear ()
+LCD.Circle ( 1 , 50 , 40 , 10 )
+LCD.FillCircle ( 1 , 30 , 24 , 10 )
+LCD.Line ( 1 , 10 , 10 , 60 , 60 )
+LCD.Line ( 1 , 50 , 20 , 90 , 70 )
+LCD.Rect ( 1 , 20 , 20 , 40 , 40 )
+LCD.FillRect ( 1 , 65 , 25 , 20 , 30 )
+LCD.Circle ( 1 , 70 , 30 , 15 )
+LCD.Update ()
+endfor
+endsub
+Sub f_displayvalues_0
+LCD.Clear ()
+LCD.Text ( 1 , 0 , 10 , 1 , "0: " + gv_runtime [ 0 ] + " int_Add" )
+LCD.Text ( 1 , 0 , 20 , 1 , "1: " + gv_runtime [ 1 ] + " int_Mult" )
+LCD.Text ( 1 , 0 , 30 , 1 , "2: " + gv_runtime [ 2 ] + " float_op" )
+LCD.Text ( 1 , 0 , 40 , 1 , "3: " + gv_runtime [ 3 ] + " randomize" )
+LCD.Text ( 1 , 0 , 50 , 1 , "4: " + gv_runtime [ 4 ] + " matrix_algb" )
+LCD.Text ( 1 , 0 , 60 , 1 , "5: " + gv_runtime [ 5 ] + " arr_sort" )
+LCD.Text ( 1 , 0 , 70 , 1 , "6: " + gv_runtime [ 6 ] + " displ_txt" )
+LCD.Text ( 1 , 0 , 80 , 1 , "7: " + gv_runtime [ 7 ] + " graphics" )
+endsub

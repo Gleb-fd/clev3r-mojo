@@ -1,0 +1,679 @@
+DATA16 FD_NATIVECODECOMMAND
+DATA16 FD_NATIVECODERESPONSE
+DATA32 STOPLCDUPDATE
+DATA32 NUMMAILBOXES
+ARRAY8 MOTORISINVERTED 4     
+ARRAY8 FIRSTOF2  16
+ARRAY16 LOCKS 2           
+DATA32 s1out1
+DATA32 s1out2
+DATA32 s1out3
+DATA32 s2out1
+DATA32 s2out2
+DATA32 s2out3
+DATA32 s3out1
+DATA32 s3out2
+DATA32 s3out3
+DATA32 s4out1
+DATA32 s4out2
+DATA32 s4out3
+DATA32 getTachoA
+DATA32 tmpTachoA
+DATA8 getSpeedA
+DATA8 setSpeedA
+DATA8 setPowerA
+DATA32 getTachoB
+DATA32 tmpTachoB
+DATA8 getSpeedB
+DATA8 setSpeedB
+DATA8 setPowerB
+DATA32 getTachoC
+DATA32 tmpTachoC
+DATA8 getSpeedC
+DATA8 setSpeedC
+DATA8 setPowerC
+DATA32 getTachoD
+DATA32 tmpTachoD
+DATA8 getSpeedD
+DATA8 setSpeedD
+DATA8 setPowerD
+DATA16 newArray1d
+DATA32 newSize1d
+DATA32 newIndex1d
+DATA32 timeMC1
+DATA32 timeMC2
+DATA32 timeMC3
+DATA32 timeMC4
+DATA32 timeMC5
+DATA32 timeMC6
+DATA32 timeMC7
+DATA32 timeMC8
+DATA32 timeMC9
+DATA32 timeMC1tmp
+DATA32 timeMC2tmp
+DATA32 timeMC3tmp
+DATA32 timeMC4tmp
+DATA32 timeMC5tmp
+DATA32 timeMC6tmp
+DATA32 timeMC7tmp
+DATA32 timeMC8tmp
+DATA32 timeMC9tmp
+DATAS VGV_K 252
+
+vmthread MAIN
+{
+    MOVE32_32 0 STOPLCDUPDATE
+    MOVE32_32 0 NUMMAILBOXES
+    OUTPUT_RESET 0 15
+
+	WRITE8 0 0 MOTORISINVERTED
+	WRITE8 0 1 MOTORISINVERTED
+	WRITE8 0 2 MOTORISINVERTED
+	WRITE8 0 3 MOTORISINVERTED
+	WRITE8 0 0 FIRSTOF2
+	WRITE8 0 1 FIRSTOF2
+	WRITE8 0 2 FIRSTOF2
+	WRITE8 1 3 FIRSTOF2
+	WRITE8 0 4 FIRSTOF2
+	WRITE8 1 5 FIRSTOF2
+	WRITE8 2 6 FIRSTOF2
+	WRITE8 0 7 FIRSTOF2
+	WRITE8 0 8 FIRSTOF2
+	WRITE8 1 9 FIRSTOF2
+	WRITE8 2 10 FIRSTOF2
+	WRITE8 0 11 FIRSTOF2
+	WRITE8 4 12 FIRSTOF2
+	WRITE8 0 13 FIRSTOF2
+	WRITE8 0 14 FIRSTOF2
+	WRITE8 0 15 FIRSTOF2
+    INPUT_DEVICE CLR_ALL -1
+    ARRAY CREATE8 0 LOCKS
+    MOVE32_32 0 s1out1
+	MOVE32_32 0 s1out2
+	MOVE32_32 0 s1out3
+    MOVE32_32 0 s2out1
+	MOVE32_32 0 s2out2
+	MOVE32_32 0 s2out3
+    MOVE32_32 0 s3out1
+	MOVE32_32 0 s3out2
+	MOVE32_32 0 s3out3
+    MOVE32_32 0 s4out1
+	MOVE32_32 0 s4out2
+	MOVE32_32 0 s4out3
+    MOVE32_32 0 timeMC1
+	MOVE32_32 0 timeMC2
+	MOVE32_32 0 timeMC3
+	MOVE32_32 0 timeMC4
+	MOVE32_32 0 timeMC5
+	MOVE32_32 0 timeMC6
+	MOVE32_32 0 timeMC7
+	MOVE32_32 0 timeMC8
+	MOVE32_32 0 timeMC9
+    STRINGS DUPLICATE '' VGV_K
+    ARRAY CREATE8 1 LOCKS
+    CALL PROGRAM_MAIN -1
+    PROGRAM_STOP -1
+}
+subcall PROGRAM_MAIN
+{
+    IN_32 SUBPROGRAM
+    DATA32 INDEX
+    ARRAY8 STACKPOINTER 4
+    ARRAY32 RETURNSTACK2 128
+    ARRAY32 RETURNSTACK 128
+    DATAS S.0 252
+    DATAS S.1 252
+    MOVE8_8 0 STACKPOINTER
+    STRINGS DUPLICATE '' VGV_K
+    CALL LCD.CLEAR
+    CALL LCD.TEXT 1.0 0.0 30.0 1.0 'Control motors with'
+    CALL LCD.TEXT 1.0 0.0 45.0 1.0 'button clicks'
+    CALL LCD.TEXT 1.0 0.0 70.0 1.0 'Left/Right: Motor A'
+    CALL LCD.TEXT 1.0 0.0 85.0 1.0 'Up/Down: Motor B'
+  while5:
+  whilebody5:
+    CALL EV3.SETLEDCOLOR 'RED' 'NORMAL'
+    UI_BUTTON WAIT_FOR_PRESS
+    CALL EV3.SETLEDCOLOR 'OFF' 'NORMAL'
+    CALL BUTTONS.GETCLICKS VGV_K
+    CALL TEXT.ISSUBTEXT VGV_K 'U' S.1
+    CALL EQ_STRING S.1 'True' S.0
+    AND8888_32 S.0 -538976289 S.0
+    STRINGS COMPARE S.0 'TRUE' S.0
+    JR_EQ8 S.0 0 else10_1
+    CALL MOTOR.SCHEDULEPOWER 'A' 100.0 0.0 500.0 0.0 'True' 
+
+	DATA8 layer13
+	DATA8 nos13
+	DATA8 busy13
+	CALL MOTORDECODEPORTSDESCRIPTOR 'A' layer13 nos13
+	JR_EQ8 0 nos13 motornotbusy13
+  motorwaiting13:
+	OUTPUT_TEST layer13 nos13 busy13
+	JR_EQ8 busy13 0 motornotbusy13
+	SLEEP
+	JR motorwaiting13
+  motornotbusy13:
+    JR endif10
+  else10_1:
+    CALL TEXT.ISSUBTEXT VGV_K 'D' S.0
+    AND8888_32 S.0 -538976289 S.0
+    STRINGS COMPARE S.0 'TRUE' S.0
+    JR_EQ8 S.0 0 else10_2
+    CALL MOTOR.SCHEDULEPOWER 'A' -100.0 0.0 500.0 0.0 'True' 
+
+	DATA8 layer15
+	DATA8 nos15
+	DATA8 busy15
+	CALL MOTORDECODEPORTSDESCRIPTOR 'A' layer15 nos15
+	JR_EQ8 0 nos15 motornotbusy15
+  motorwaiting15:
+	OUTPUT_TEST layer15 nos15 busy15
+	JR_EQ8 busy15 0 motornotbusy15
+	SLEEP
+	JR motorwaiting15
+  motornotbusy15:
+  else10_2:
+  endif10:
+    CALL TEXT.ISSUBTEXT VGV_K 'L' S.1
+    CALL EQ_STRING S.1 'True' S.0
+    AND8888_32 S.0 -538976289 S.0
+    STRINGS COMPARE S.0 'TRUE' S.0
+    JR_EQ8 S.0 0 else16_1
+    CALL MOTOR.SCHEDULEPOWER 'B' 100.0 0.0 500.0 0.0 'True' 
+
+	DATA8 layer19
+	DATA8 nos19
+	DATA8 busy19
+	CALL MOTORDECODEPORTSDESCRIPTOR 'B' layer19 nos19
+	JR_EQ8 0 nos19 motornotbusy19
+  motorwaiting19:
+	OUTPUT_TEST layer19 nos19 busy19
+	JR_EQ8 busy19 0 motornotbusy19
+	SLEEP
+	JR motorwaiting19
+  motornotbusy19:
+    JR endif16
+  else16_1:
+    CALL TEXT.ISSUBTEXT VGV_K 'R' S.0
+    AND8888_32 S.0 -538976289 S.0
+    STRINGS COMPARE S.0 'TRUE' S.0
+    JR_EQ8 S.0 0 else16_2
+    CALL MOTOR.SCHEDULEPOWER 'B' -100.0 0.0 500.0 0.0 'True' 
+
+	DATA8 layer21
+	DATA8 nos21
+	DATA8 busy21
+	CALL MOTORDECODEPORTSDESCRIPTOR 'B' layer21 nos21
+	JR_EQ8 0 nos21 motornotbusy21
+  motorwaiting21:
+	OUTPUT_TEST layer21 nos21 busy21
+	JR_EQ8 busy21 0 motornotbusy21
+	SLEEP
+	JR motorwaiting21
+  motornotbusy21:
+  else16_2:
+  endif16:
+    CALL BUTTONS.CURRENT S.1
+    CALL TEXT.ISSUBTEXT S.1 'E' S.0
+    AND8888_32 S.0 -538976289 S.0
+    STRINGS COMPARE S.0 'TRUE' S.0
+    JR_EQ8 S.0 0 else22_1
+    UI_BUTTON FLUSH
+  else22_1:
+  endif22:
+    JR whilebody5
+  endwhile5:
+ENDTHREAD:
+    RETURN
+}
+subcall LCD.CLEAR   // V
+{
+	UI_DRAW(TOPLINE,0)
+	UI_DRAW(CLEAN)
+	
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall LCD.TEXT     // FFFFSV
+{
+	IN_F col
+	IN_F x
+	IN_F y
+	IN_F font
+	IN_S text 252
+	
+	DATA8 col_8
+	DATA16 x_16
+	DATA16 y_16
+	DATA8 font_8	
+	MOVEF_8 col col_8
+	MOVEF_16 x x_16
+	MOVEF_16 y y_16
+	MOVEF_8 font font_8
+	
+	UI_DRAW SELECT_FONT font_8
+	UI_DRAW TEXT col_8 x_16 y_16 text
+
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall EV3.SETLEDCOLOR    // SSV
+{
+	IN_S color 8		// only receive first 7 characters
+	IN_S effect 8       // only receive first 7 characters
+	
+	ARRAY8 color_1 4	// split up to be able to do some operations with 4 bytes each
+	ARRAY8 color_2 4
+	ARRAY8 effect_1 4
+	ARRAY8 effect_2 4
+
+	STRINGS DUPLICATE color color_1
+	STRINGS DUPLICATE effect effect_1	
+	AND8888_32 color_1 -538976289 color_1        // AND 0xdfdfdfdf performs an upcase for 4 letters
+	AND8888_32 color_2 -538976289 color_2        // AND 0xdfdfdfdf performs an upcase for 4 letters
+	AND8888_32 effect_1 -538976289 effect_1      // AND 0xdfdfdfdf performs an upcase for 4 letters	
+	AND8888_32 effect_2 -538976289 effect_2      // AND 0xdfdfdfdf performs an upcase for 4 letters	
+	
+	DATA8 col
+	DATA8 flag
+	MOVE8_8 0 col
+	
+	STRINGS COMPARE color_1 'GREEN' flag
+	JR_EQ8 flag 0 notgreen
+	MOVE8_8 1 col
+	JR checkeffect
+notgreen:	
+	STRINGS COMPARE color_1 'RED' flag
+	JR_EQ8 flag 0 notred
+	MOVE8_8 2 col
+	JR checkeffect
+notred:	
+	STRINGS COMPARE color_1 'ORANGE' flag
+	JR_EQ8 flag 0 setcol
+	MOVE8_8 3 col
+checkeffect:
+	
+	STRINGS COMPARE effect_1 'FLASH' flag
+	JR_EQ8 flag 0 noflash
+	ADD8 col 3 col
+	JR setcol
+noflash:
+	STRINGS COMPARE effect_1 'PULSE' flag
+	JR_EQ8 flag 0 setcol
+	ADD8 col 6 col	
+	
+setcol:
+	UI_WRITE LED col
+}
+subcall BUTTONS.GETCLICKS      // S
+{
+	OUT_S result 8
+
+	DATA8 isclicked
+	
+	STRINGS DUPLICATE '' result	
+	
+	UI_BUTTON SHORTPRESS 1 isclicked
+	JR_EQ8 isclicked 0 not_up
+	STRINGS ADD result 'U' result
+not_up:
+	UI_BUTTON SHORTPRESS 2 isclicked
+	JR_EQ8 isclicked 0 not_enter
+	STRINGS ADD result 'E' result
+not_enter:
+	UI_BUTTON SHORTPRESS 3 isclicked
+	JR_EQ8 isclicked 0 not_down
+	STRINGS ADD result 'D' result
+not_down:	
+	UI_BUTTON SHORTPRESS 4 isclicked
+	JR_EQ8 isclicked 0 not_right
+	STRINGS ADD result 'R' result
+not_right:
+	UI_BUTTON SHORTPRESS 5 isclicked
+	JR_EQ8 isclicked 0 not_left
+	STRINGS ADD result 'L' result
+not_left:	
+
+	RETURN
+}
+subcall TEXT.ISSUBTEXT   // SSS
+{
+	IN_S a  252
+	IN_S b  252
+	OUT_S result 8
+	DATAS MEMORY 252  // starts at 512
+
+	DATA16 la
+	DATA16 lb
+	DATA16 diff
+	DATA8 flag
+	
+	STRINGS GET_SIZE a la
+	STRINGS GET_SIZE b lb
+	JR_LTEQ16 lb 0 notfound   // empty search string
+	JR_GT16 lb la notfound  // search string is bigger than a
+	SUB16 la lb diff        // size difference
+	
+	DATAS c 252
+	STRINGS DUPLICATE b c    // prepare temporary string to have correct size
+	STRINGS DUPLICATE a MEMORY  // put a into addressable memory
+
+	DATA32 index
+	DATA32 endindex
+	DATA32 size
+	MOVE16_32 512 index
+	MOVE16_32 diff endindex
+	ADD32 endindex 512 endindex
+	MOVE16_32 lb size
+loop:	
+	MEMORY_READ 1 TEXT.ISSUBTEXT index size c
+	STRINGS COMPARE b c flag
+	JR_EQ8 flag 0 nothere
+	
+	STRINGS DUPLICATE 'True' result
+	RETURN
+	
+nothere:	
+	ADD32 index,1,index
+	JR_LTEQ32 index endindex loop
+	
+notfound:	
+	STRINGS DUPLICATE 'False' result
+}
+subcall EQ_STRING       // SSS
+{
+	IN_S  a 252
+	IN_S  b 252
+	OUT_S result 8
+	
+	DATA8 flag
+	
+	// check if completely equal
+	STRINGS COMPARE a b flag
+	JR_NEQ8 FLAG 0 isequal
+	// second chance: when both values are "True" in any casing, this also counts as equal
+	AND8888_32 a -538976289 a        // AND 0xdfdfdfdf performs an upcase for 4 letters
+    STRINGS COMPARE a 'TRUE' flag	
+	JR_EQ8 0,flag,isnotequal
+	AND8888_32 b -538976289 b        // AND 0xdfdfdfdf performs an upcase for 4 letters
+    STRINGS COMPARE b 'TRUE' flag	
+	JR_EQ8 0,flag,isnotequal
+isequal:
+	STRINGS DUPLICATE 'True' result
+	RETURN
+isnotequal:
+	STRINGS DUPLICATE 'False' result
+	RETURN
+}
+subcall MOTOR.SCHEDULEPOWER   // SFFFFSV     MOTORDECODEPORTSDESCRIPTOR
+{
+	IN_S ports 8
+	IN_F power
+	IN_F step1
+	IN_F step2
+	IN_F step3
+	IN_S brake 8
+	
+	DATA8 layer
+	DATA8 nos
+	DATA8 pwr
+	DATA32 stp1
+	DATA32 stp2
+	DATA32 stp3	
+	DATA8 brk
+	
+	CALL MOTORDECODEPORTSDESCRIPTOR ports layer nos
+	JR_EQ8 nos 0 noport
+
+	MOVEF_8 power pwr
+	MATH ABS step1 step1
+	MOVEF_32 step1 stp1
+	MATH ABS step2 step2
+	MOVEF_32 step2 stp2
+	MATH ABS step3 step3
+	MOVEF_32 step3 stp3	
+	AND8888_32 brake -538976289 brake        // AND 0xdfdfdfdf performs an upcase for 4 letters
+    STRINGS COMPARE brake 'TRUE' brk
+	
+	OUTPUT_STEP_POWER layer nos pwr stp1 stp2 stp3 brk
+noport:
+}
+subcall MOTORDECODEPORTSDESCRIPTOR  //  V
+{
+	IN_S descriptor 8
+	OUT_8 layer
+	OUT_8 nos
+
+	DATA8 i 
+	DATA8 c
+
+	MOVE8_8 0 layer
+	MOVE8_8 0 nos	
+	MOVE8_8 0 i
+loop:
+	READ8 descriptor i c
+	JR_EQ8 c 0 decoding_end
+	
+	JR_LT8 c 65 no_uppercase_port
+	JR_GT8 c 68 no_uppercase_port
+	SUB8 c 65 c
+	RL8  1 c c
+	OR8  nos c nos
+	JR loop_end
+no_uppercase_port:
+	JR_LT8 c 97 no_lowercase_port
+	JR_GT8 c 100 no_lowercase_port
+	SUB8 c 97 c
+	RL8  1 c c
+	OR8  nos c nos	
+	JR loop_end
+no_lowercase_port:
+	JR_LT8 c 49 loop_end
+	JR_GT8 c 52 loop_end
+	SUB8 c 49 layer
+loop_end:
+	ADD8 1 i i
+	JR loop	
+	
+decoding_end:
+	RETURN
+}
+subcall BUTTONS.CURRENT    // S
+{
+	OUT_S result 8
+	DATA8 ispressed
+	
+// BIG CASE TREE TO GET ALL POSSIBILITIES
+
+	UI_BUTTON PRESSED 1 ispressed
+	JR_NEQ8 ispressed 0 is_1____
+is_X____:
+	UI_BUTTON PRESSED 2 ispressed
+	JR_NEQ8 ispressed 0 is_X2___
+is_XX___:
+	UI_BUTTON PRESSED 3 ispressed
+	JR_NEQ8 ispressed 0 is_XX3__
+is_XXX__:
+	UI_BUTTON PRESSED 4 ispressed
+	JR_NEQ8 ispressed 0 is_XXX4_
+is_XXXX_:
+	UI_BUTTON PRESSED 5 ispressed
+	JR_NEQ8 ispressed 0 is_XXXX5
+is_XXXXX:
+	STRINGS DUPLICATE '' result
+	RETURN
+is_XXXX5:
+	STRINGS DUPLICATE 'L' result
+	RETURN
+is_XXX4_:
+	UI_BUTTON PRESSED 5 ispressed
+	JR_NEQ8 ispressed 0 is_XXX45
+is_XXX4X:
+	STRINGS DUPLICATE 'R' result
+	RETURN
+is_XXX45:
+	STRINGS DUPLICATE 'RL' result
+	RETURN
+is_XX3__:
+	UI_BUTTON PRESSED 4 ispressed
+	JR_NEQ8 ispressed 0 is_XX34_
+is_XX3X_:
+	UI_BUTTON PRESSED 5 ispressed
+	JR_NEQ8 ispressed 0 is_XX3X5
+is_XX3XX:
+	STRINGS DUPLICATE 'D' result
+	RETURN
+is_XX3X5:
+	STRINGS DUPLICATE 'DL' result
+	RETURN
+is_XX34_:
+	UI_BUTTON PRESSED 5 ispressed
+	JR_NEQ8 ispressed 0 is_XX345
+is_XX34X:
+	STRINGS DUPLICATE 'DR' result
+	RETURN
+is_XX345:
+	STRINGS DUPLICATE 'DRL' result
+	RETURN
+is_X2___:
+	UI_BUTTON PRESSED 3 ispressed
+	JR_NEQ8 ispressed 0 is_X23__
+is_X2X__:
+	UI_BUTTON PRESSED 4 ispressed
+	JR_NEQ8 ispressed 0 is_X2X4_
+is_X2XX_:
+	UI_BUTTON PRESSED 5 ispressed
+	JR_NEQ8 ispressed 0 is_X2XX5
+is_X2XXX:
+	STRINGS DUPLICATE 'E' result
+	RETURN
+is_X2XX5:
+	STRINGS DUPLICATE 'EL' result
+	RETURN
+is_X2X4_:
+	UI_BUTTON PRESSED 5 ispressed
+	JR_NEQ8 ispressed 0 is_X2X45
+is_X2X4X:
+	STRINGS DUPLICATE 'ER' result
+	RETURN
+is_X2X45:
+	STRINGS DUPLICATE 'ERL' result
+	RETURN
+is_X23__:
+	UI_BUTTON PRESSED 4 ispressed
+	JR_NEQ8 ispressed 0 is_X234_
+is_X23X_:
+	UI_BUTTON PRESSED 5 ispressed
+	JR_NEQ8 ispressed 0 is_X23X5
+is_X23XX:
+	STRINGS DUPLICATE 'ED' result
+	RETURN
+is_X23X5:
+	STRINGS DUPLICATE 'EDL' result
+	RETURN
+is_X234_:
+	UI_BUTTON PRESSED 5 ispressed
+	JR_NEQ8 ispressed 0 is_X2345
+is_X234X:
+	STRINGS DUPLICATE 'EDR' result
+	RETURN
+is_X2345:
+	STRINGS DUPLICATE 'EDRL' result
+	RETURN
+is_1____:
+	UI_BUTTON PRESSED 2 ispressed
+	JR_NEQ8 ispressed 0 is_12___
+is_1X___:
+	UI_BUTTON PRESSED 3 ispressed
+	JR_NEQ8 ispressed 0 is_1X3__
+is_1XX__:
+	UI_BUTTON PRESSED 4 ispressed
+	JR_NEQ8 ispressed 0 is_1XX4_
+is_1XXX_:
+	UI_BUTTON PRESSED 5 ispressed
+	JR_NEQ8 ispressed 0 is_1XXX5
+is_1XXXX:
+	STRINGS DUPLICATE 'U' result
+	RETURN
+is_1XXX5:
+	STRINGS DUPLICATE 'UL' result
+	RETURN
+is_1XX4_:
+	UI_BUTTON PRESSED 5 ispressed
+	JR_NEQ8 ispressed 0 is_1XX45
+is_1XX4X:
+	STRINGS DUPLICATE 'UR' result
+	RETURN
+is_1XX45:
+	STRINGS DUPLICATE 'URL' result
+	RETURN
+is_1X3__:
+	UI_BUTTON PRESSED 4 ispressed
+	JR_NEQ8 ispressed 0 is_1X34_
+is_1X3X_:
+	UI_BUTTON PRESSED 5 ispressed
+	JR_NEQ8 ispressed 0 is_1X3X5
+is_1X3XX:
+	STRINGS DUPLICATE 'UD' result
+	RETURN
+is_1X3X5:
+	STRINGS DUPLICATE 'UDL' result
+	RETURN
+is_1X34_:
+	UI_BUTTON PRESSED 5 ispressed
+	JR_NEQ8 ispressed 0 is_1X345
+is_1X34X:
+	STRINGS DUPLICATE 'UDR' result
+	RETURN
+is_1X345:
+	STRINGS DUPLICATE 'UDRL' result
+	RETURN
+is_12___:
+	UI_BUTTON PRESSED 3 ispressed
+	JR_NEQ8 ispressed 0 is_123__
+is_12X__:
+	UI_BUTTON PRESSED 4 ispressed
+	JR_NEQ8 ispressed 0 is_12X4_
+is_12XX_:
+	UI_BUTTON PRESSED 5 ispressed
+	JR_NEQ8 ispressed 0 is_12XX5
+is_12XXX:
+	STRINGS DUPLICATE 'UE' result
+	RETURN
+is_12XX5:
+	STRINGS DUPLICATE 'UEL' result
+	RETURN
+is_12X4_:
+	UI_BUTTON PRESSED 5 ispressed
+	JR_NEQ8 ispressed 0 is_12X45
+is_12X4X:
+	STRINGS DUPLICATE 'UER' result
+	RETURN
+is_12X45:
+	STRINGS DUPLICATE 'UERL' result
+	RETURN
+is_123__:
+	UI_BUTTON PRESSED 4 ispressed
+	JR_NEQ8 ispressed 0 is_1234_
+is_123X_:
+	UI_BUTTON PRESSED 5 ispressed
+	JR_NEQ8 ispressed 0 is_123X5
+is_123XX:
+	STRINGS DUPLICATE 'UED' result
+	RETURN
+is_123X5:
+	STRINGS DUPLICATE 'UEDL' result
+	RETURN
+is_1234_:
+	UI_BUTTON PRESSED 5 ispressed
+	JR_NEQ8 ispressed 0 is_12345
+is_1234X:
+	STRINGS DUPLICATE 'UEDR' result
+	RETURN
+is_12345:
+	STRINGS DUPLICATE 'UEDRL' result
+	RETURN
+}

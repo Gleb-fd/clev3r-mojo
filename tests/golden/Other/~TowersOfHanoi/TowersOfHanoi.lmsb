@@ -1,0 +1,475 @@
+DATA16 FD_NATIVECODECOMMAND
+DATA16 FD_NATIVECODERESPONSE
+DATA32 STOPLCDUPDATE
+DATA32 NUMMAILBOXES
+ARRAY8 MOTORISINVERTED 4     
+ARRAY8 FIRSTOF2  16
+ARRAY16 LOCKS 2           
+DATA32 s1out1
+DATA32 s1out2
+DATA32 s1out3
+DATA32 s2out1
+DATA32 s2out2
+DATA32 s2out3
+DATA32 s3out1
+DATA32 s3out2
+DATA32 s3out3
+DATA32 s4out1
+DATA32 s4out2
+DATA32 s4out3
+DATA32 getTachoA
+DATA32 tmpTachoA
+DATA8 getSpeedA
+DATA8 setSpeedA
+DATA8 setPowerA
+DATA32 getTachoB
+DATA32 tmpTachoB
+DATA8 getSpeedB
+DATA8 setSpeedB
+DATA8 setPowerB
+DATA32 getTachoC
+DATA32 tmpTachoC
+DATA8 getSpeedC
+DATA8 setSpeedC
+DATA8 setPowerC
+DATA32 getTachoD
+DATA32 tmpTachoD
+DATA8 getSpeedD
+DATA8 setSpeedD
+DATA8 setPowerD
+DATA16 newArray1d
+DATA32 newSize1d
+DATA32 newIndex1d
+DATA32 timeMC1
+DATA32 timeMC2
+DATA32 timeMC3
+DATA32 timeMC4
+DATA32 timeMC5
+DATA32 timeMC6
+DATA32 timeMC7
+DATA32 timeMC8
+DATA32 timeMC9
+DATA32 timeMC1tmp
+DATA32 timeMC2tmp
+DATA32 timeMC3tmp
+DATA32 timeMC4tmp
+DATA32 timeMC5tmp
+DATA32 timeMC6tmp
+DATA32 timeMC7tmp
+DATA32 timeMC8tmp
+DATA32 timeMC9tmp
+ARRAY16 VGV_TOWER 2
+DATAF VGV_I
+DATAF VGV_J
+DATAF VGV_W
+DATAF VGV_A
+DATAF VGV_B
+DATAF VGV_N
+DATAF VGV_L
+DATAS VGV_NEWB 252
+
+vmthread MAIN
+{
+    MOVE32_32 0 STOPLCDUPDATE
+    MOVE32_32 0 NUMMAILBOXES
+    OUTPUT_RESET 0 15
+
+	WRITE8 0 0 MOTORISINVERTED
+	WRITE8 0 1 MOTORISINVERTED
+	WRITE8 0 2 MOTORISINVERTED
+	WRITE8 0 3 MOTORISINVERTED
+	WRITE8 0 0 FIRSTOF2
+	WRITE8 0 1 FIRSTOF2
+	WRITE8 0 2 FIRSTOF2
+	WRITE8 1 3 FIRSTOF2
+	WRITE8 0 4 FIRSTOF2
+	WRITE8 1 5 FIRSTOF2
+	WRITE8 2 6 FIRSTOF2
+	WRITE8 0 7 FIRSTOF2
+	WRITE8 0 8 FIRSTOF2
+	WRITE8 1 9 FIRSTOF2
+	WRITE8 2 10 FIRSTOF2
+	WRITE8 0 11 FIRSTOF2
+	WRITE8 4 12 FIRSTOF2
+	WRITE8 0 13 FIRSTOF2
+	WRITE8 0 14 FIRSTOF2
+	WRITE8 0 15 FIRSTOF2
+    INPUT_DEVICE CLR_ALL -1
+    ARRAY CREATE8 0 LOCKS
+    MOVE32_32 0 s1out1
+	MOVE32_32 0 s1out2
+	MOVE32_32 0 s1out3
+    MOVE32_32 0 s2out1
+	MOVE32_32 0 s2out2
+	MOVE32_32 0 s2out3
+    MOVE32_32 0 s3out1
+	MOVE32_32 0 s3out2
+	MOVE32_32 0 s3out3
+    MOVE32_32 0 s4out1
+	MOVE32_32 0 s4out2
+	MOVE32_32 0 s4out3
+    MOVE32_32 0 timeMC1
+	MOVE32_32 0 timeMC2
+	MOVE32_32 0 timeMC3
+	MOVE32_32 0 timeMC4
+	MOVE32_32 0 timeMC5
+	MOVE32_32 0 timeMC6
+	MOVE32_32 0 timeMC7
+	MOVE32_32 0 timeMC8
+	MOVE32_32 0 timeMC9
+    CALL ARRAYCREATE_STRING VGV_TOWER
+    MOVEF_F 0.0 VGV_I
+    MOVEF_F 0.0 VGV_J
+    MOVEF_F 0.0 VGV_W
+    MOVEF_F 0.0 VGV_A
+    MOVEF_F 0.0 VGV_B
+    MOVEF_F 0.0 VGV_N
+    MOVEF_F 0.0 VGV_L
+    STRINGS DUPLICATE '' VGV_NEWB
+    ARRAY CREATE8 1 LOCKS
+    CALL PROGRAM_MAIN -1
+    PROGRAM_STOP -1
+}
+subcall PROGRAM_MAIN
+{
+    IN_32 SUBPROGRAM
+    DATA32 INDEX
+    ARRAY8 STACKPOINTER 4
+    DATAF F.0
+    DATAF F.1
+    DATAF F.2
+    ARRAY32 RETURNSTACK2 128
+    ARRAY32 RETURNSTACK 128
+    DATAS S.0 252
+    DATAS S.1 252
+    DATAS S.2 252
+    MOVE8_8 0 STACKPOINTER
+    CALL ARRAYSTORE_STRING 0.0 '' VGV_TOWER
+    MOVEF_F 0.0 VGV_I
+    MOVEF_F 0.0 VGV_J
+    MOVEF_F 0.0 VGV_W
+    MOVEF_F 0.0 VGV_A
+    MOVEF_F 0.0 VGV_B
+    MOVEF_F 0.0 VGV_N
+    MOVEF_F 0.0 VGV_L
+    STRINGS DUPLICATE '' VGV_NEWB
+    CALL ARRAYSTORE_STRING 0.0 'JIHGFEDCBA' VGV_TOWER
+    CALL ARRAYSTORE_STRING 1.0 '' VGV_TOWER
+    CALL ARRAYSTORE_STRING 2.0 '' VGV_TOWER
+    WRITE32 ENDSUB_F_DRAW_0:CALLSUB4 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_DRAW_0
+CALLSUB4:
+    MOVEF_F 0.0 VGV_A
+    MOVEF_F 2.0 VGV_B
+    MOVEF_F 10.0 VGV_N
+    WRITE32 ENDSUB_F_MOVE_0:CALLSUB5 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_MOVE_0
+CALLSUB5:
+    DATA32 milliseconds6
+	MOVEF_32 1000000.0 milliseconds6
+	DATA32 timer6
+	TIMER_WAIT milliseconds6 timer6
+	TIMER_READY timer6
+ENDTHREAD:
+    RETURN
+SUB_F_MOVE_0:
+    JR_NEQF VGV_N 1.0 else7_1
+    WRITE32 ENDSUB_F_MOVE1_0:CALLSUB8 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_MOVE1_0
+CALLSUB8:
+    JR endif7
+  else7_1:
+    JR_LTEQF VGV_N 1.0 else7_2
+    SUBF VGV_N 1.0 VGV_N
+    SUBF 3.0 VGV_A F.0
+    SUBF F.0 VGV_B VGV_B
+    WRITE32 ENDSUB_F_MOVE_0:CALLSUB12 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_MOVE_0
+CALLSUB12:
+    SUBF 3.0 VGV_A F.0
+    SUBF F.0 VGV_B VGV_B
+    WRITE32 ENDSUB_F_MOVE1_0:CALLSUB15 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_MOVE1_0
+CALLSUB15:
+    SUBF 3.0 VGV_A F.0
+    SUBF F.0 VGV_B VGV_A
+    WRITE32 ENDSUB_F_MOVE_0:CALLSUB18 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_MOVE_0
+CALLSUB18:
+    SUBF 3.0 VGV_A F.0
+    SUBF F.0 VGV_B VGV_A
+    ADDF VGV_N 1.0 VGV_N
+  else7_2:
+  endif7:
+RETSUB_F_MOVE_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_MOVE_0:
+SUB_F_MOVE1_0:
+    DATA32 milliseconds22
+	MOVEF_32 1000.0 milliseconds22
+	DATA32 timer22
+	TIMER_WAIT milliseconds22 timer22
+	TIMER_READY timer22
+    CALL ARRAYGET_STRING VGV_A S.0 VGV_TOWER
+    CALL TEXT.GETLENGTH S.0 VGV_L
+    CALL ARRAYGET_STRING VGV_B S.0 VGV_TOWER
+    CALL ARRAYGET_STRING VGV_A S.2 VGV_TOWER
+    CALL TEXT.GETSUBTEXT S.2 VGV_L 1.0 S.1
+    CALL TEXT.APPEND S.0 S.1 VGV_NEWB
+    CALL ARRAYSTORE_STRING VGV_B VGV_NEWB VGV_TOWER
+    CALL ARRAYGET_STRING VGV_A S.1 VGV_TOWER
+    SUBF VGV_L 1.0 F.0
+    CALL TEXT.GETSUBTEXT S.1 1.0 F.0 S.0
+    CALL ARRAYSTORE_STRING VGV_A S.0 VGV_TOWER
+    WRITE32 ENDSUB_F_DRAW_0:CALLSUB34 STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_DRAW_0
+CALLSUB34:
+RETSUB_F_MOVE1_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_MOVE1_0:
+SUB_F_DRAW_0:
+    MOVE32_32 1 STOPLCDUPDATE
+    CALL LCD.CLEAR
+    MOVEF_F 0.0 VGV_I
+  for37:
+    JR_GTF VGV_I 7.0 endfor37
+  forbody37:
+    MOVEF_F 1.0 VGV_J
+  for38:
+    CALL ARRAYGET_STRING VGV_I S.0 VGV_TOWER
+    CALL TEXT.GETLENGTH S.0 F.0
+    JR_GTF VGV_J F.0 endfor38
+  forbody38:
+    CALL ARRAYGET_STRING VGV_I S.1 VGV_TOWER
+    CALL TEXT.GETSUBTEXT S.1 VGV_J 1.0 S.0
+    CALL TEXT.GETCHARACTERCODE S.0 F.2
+    SUBF F.2 64.0 F.1
+    MULF 4.0 F.1 F.0
+    ADDF 10.0 F.0 VGV_W
+    MULF VGV_I 60.0 F.2
+    ADDF F.2 30.0 F.1
+    DATAF tmpf49
+    DATA8 flag49
+    DIVF VGV_W 2.0 tmpf49
+    CP_EQF 0.0 2.0 flag49
+    SELECTF flag49 0.0 tmpf49 F.2
+
+    SUBF F.1 F.2 F.0
+    MULF VGV_J 11.0 F.2
+    SUBF 126.0 F.2 F.1
+    CALL LCD.FILLRECT 1.0 F.0 F.1 VGV_W 10.0
+    ADDF VGV_J 1.0 VGV_J
+    CALL ARRAYGET_STRING VGV_I S.0 VGV_TOWER
+    CALL TEXT.GETLENGTH S.0 F.0
+    JR_LTEQF VGV_J F.0 forbody38
+  endfor38:
+    ADDF VGV_I 1.0 VGV_I
+    JR_LTEQF VGV_I 7.0 forbody37
+  endfor37:
+    MOVE32_32 0 STOPLCDUPDATE
+	UI_DRAW UPDATE
+RETSUB_F_DRAW_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_DRAW_0:
+}
+subcall ARRAYSTORE_STRING   // FFSV
+{
+	IN_F index
+	IN_S v 252	
+	IN_16 handle
+	
+	DATA32 index32
+	DATA32 len	
+	MOVEF_32 index index32
+	MUL32 index32 252 index32
+	
+	ARRAY SIZE handle len
+	JR_LT32 index32 0 negativeindex
+	JR_LT32 index32 len arraybigenough
+
+increasesize:	
+	DATA32 doublelen
+	ADD32 len len doublelen
+	ARRAY RESIZE handle doublelen
+	DATA8 zerobyte	
+	MOVE8_8 0 zerobyte
+clearloop:	
+	ARRAY_WRITE handle len zerobyte      // only write a 0 at begin of each string (rest does not matter)
+	ADD32 len 252 len
+	JR_LT32 len doublelen clearloop
+	JR_GTEQ32 index32 len increasesize
+	
+arraybigenough:
+	DATA16 slen
+	STRINGS GET_SIZE v slen
+	JR_LTEQ16 slen 15 shortstring
+	ARRAY INIT8 handle index32 252 v v+1 v+2 v+3 v+4 v+5 v+6 v+7 v+8 v+9 v+10 v+11 v+12 v+13 v+14 v+15 v+16 v+17 v+18 v+19 v+20 v+21 v+22 v+23 v+24 v+25 v+26 v+27 v+28 v+29 v+30 v+31 v+32 v+33 v+34 v+35 v+36 v+37 v+38 v+39 v+40 v+41 v+42 v+43 v+44 v+45 v+46 v+47 v+48 v+49 v+50 v+51 v+52 v+53 v+54 v+55 v+56 v+57 v+58 v+59 v+60 v+61 v+62 v+63 v+64 v+65 v+66 v+67 v+68 v+69 v+70 v+71 v+72 v+73 v+74 v+75 v+76 v+77 v+78 v+79 v+80 v+81 v+82 v+83 v+84 v+85 v+86 v+87 v+88 v+89 v+90 v+91 v+92 v+93 v+94 v+95 v+96 v+97 v+98 v+99 v+100 v+101 v+102 v+103 v+104 v+105 v+106 v+107 v+108 v+109 v+110 v+111 v+112 v+113 v+114 v+115 v+116 v+117 v+118 v+119 v+120 v+121 v+122 v+123 v+124 v+125 v+126 v+127 v+128 v+129 v+130 v+131 v+132 v+133 v+134 v+135 v+136 v+137 v+138 v+139 v+140 v+141 v+142 v+143 v+144 v+145 v+146 v+147 v+148 v+149 v+150 v+151 v+152 v+153 v+154 v+155 v+156 v+157 v+158 v+159 v+160 v+161 v+162 v+163 v+164 v+165 v+166 v+167 v+168 v+169 v+170 v+171 v+172 v+173 v+174 v+175 v+176 v+177 v+178 v+179 v+180 v+181 v+182 v+183 v+184 v+185 v+186 v+187 v+188 v+189 v+190 v+191 v+192 v+193 v+194 v+195 v+196 v+197 v+198 v+199 v+200 v+201 v+202 v+203 v+204 v+205 v+206 v+207 v+208 v+209 v+210 v+211 v+212 v+213 v+214 v+215 v+216 v+217 v+218 v+219 v+220 v+221 v+222 v+223 v+224 v+225 v+226 v+227 v+228 v+229 v+230 v+231 v+232 v+233 v+234 v+235 v+236 v+237 v+238 v+239 v+240 v+241 v+242 v+243 v+244 v+245 v+246 v+247 v+248 v+249 v+250 v+251
+	RETURN
+shortstring:
+	ARRAY INIT8 handle index32 16 v v+1 v+2 v+3 v+4 v+5 v+6 v+7 v+8 v+9 v+10 v+11 v+12 v+13 v+14 v+15
+negativeindex:
+}
+subcall ARRAYGET_STRING   // FFS
+{
+	IN_F index
+	OUT_S value 252	
+	IN_16 handle
+
+	DATA32 index32
+	MOVEF_32 index index32
+	
+	MUL32 252 index32 index32 // every string has 252 bytes
+	MOVE8_8 0 value		  // set to empty string in case that nothing can be read
+	
+	ARRAY READ_CONTENT 1 handle index32 252 value   // transfer memory from program slot 1
+}
+subcall TEXT.GETLENGTH      // SF
+{
+	IN_S a 252
+	OUT_F result
+	
+	DATA16 tmp
+	STRINGS GET_SIZE a tmp
+	MOVE16_F tmp result
+}
+subcall TEXT.GETSUBTEXT      // SFFS
+{
+	IN_S a 252
+	IN_F start_f
+	IN_F sublength_f
+	OUT_S result 252
+	DATAS MEMORY 252  // starts at 512
+
+	// convert float parameters to integer values
+	DATA16 start
+	DATA16 sublength	
+	MOVEF_16 start_f start	   // rounding towards 0
+	SUB16 start 1 start        // use index 0 for start instead of index 1		
+	MOVEF_16 sublength_f sublength  // rounding towards 0
+	// special handling: a sublength >0.0 and <=1.0 must be treated as 1 (strange behaviour of SmallBasic)
+	JR_NEQ16 sublength 0 nospeciallength
+	JR_LTEQF sublength_f 0.0 nospeciallength
+	MOVE16_16 1 sublength
+nospeciallength:
+	
+	// determine which part of the string needs to be taken (if any)
+	DATA16 len              // length of original string
+	STRINGS GET_SIZE a len
+	
+	JR_LT16 start 0 nothingremains
+	JR_LTEQ16 sublength 0 nothingremains
+	DATA16 lenafterstart
+	SUB16 len start lenafterstart
+	JR_LTEQ16 lenafterstart 0 nothingremains
+
+	JR_LTEQ16 sublength lenafterstart getfullsublength
+	MOVE16_16 lenafterstart sublength      // reduce sublength to available data
+getfullsublength:	
+
+	STRINGS DUPLICATE a MEMORY
+	DATA32 offset
+	DATA32 size
+	DATA32 end
+
+	MOVE16_32 start offset
+	MOVE16_32 sublength size
+	ADD32 offset 512 offset
+	ADD32 offset size end
+
+	MEMORY_WRITE 1 TEXT.GETSUBTEXT end 1 ''    // insert string end marker
+	ADD32 size 1 size            // also copy the end marker
+	MEMORY_READ 1 TEXT.GETSUBTEXT offset size result	
+	RETURN
+	
+nothingremains:
+	STRINGS DUPLICATE '', result
+}
+subcall TEXT.APPEND     // SSS
+{
+	IN_S a 252
+	IN_S b 252
+    OUT_S result 252
+	
+	DATA16 len0
+	DATA16 len1
+	DATA16 sum
+
+	STRINGS GET_SIZE a len0
+	STRINGS GET_SIZE b len1
+	ADD16 len0,len1,sum
+	JR_GT16 sum,251,stringsizeexceeded
+
+	STRINGS ADD a b result
+	RETURN
+	
+stringsizeexceeded:	
+    STRINGS DUPLICATE a result
+}
+subcall LCD.CLEAR   // V
+{
+	UI_DRAW(TOPLINE,0)
+	UI_DRAW(CLEAN)
+	
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall TEXT.GETCHARACTERCODE   // SF
+{
+	IN_S a 4
+	OUT_F result
+
+	DATA16 c
+	MOVE8_16 a c
+	AND16 c 255 c
+	
+	MOVE16_F c result
+}
+subcall LCD.FILLRECT      // FFFFFV
+{
+	IN_F col
+	IN_F x
+	IN_F y
+	IN_F w
+	IN_F h	
+	
+	DATA8 col_8
+	DATA16 x_16
+	DATA16 y_16
+	DATA16 w_16
+	DATA16 h_16	
+	MOVEF_8 col col_8
+	MOVEF_16 x x_16
+	MOVEF_16 y y_16
+	MOVEF_16 w w_16
+	MOVEF_16 h h_16
+	
+	UI_DRAW FILLRECT,col_8,x_16,y_16,w_16,h_16
+	
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall ARRAYCREATE_STRING   // F
+{
+	OUT_16 handle
+
+	DATA8 z
+	
+	ARRAY CREATE8 504  handle     // 504 bytes are enough to store 2 strings
+	MOVE8_8 0 z
+	ARRAY FILL handle z
+}

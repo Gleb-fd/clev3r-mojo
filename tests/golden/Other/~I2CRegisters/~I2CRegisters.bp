@@ -1,0 +1,23 @@
+gv_port = 0
+gv_address = 0
+gv_w [ 0 ] = 0
+gv_r [ 0 ] = 0
+gv_reg = 0
+gv_port = 1
+gv_address = 99
+Sensor.WriteI2CRegister ( gv_port , gv_address , 2 , 105 )
+Sensor.WriteI2CRegister ( gv_port , gv_address , 3 , 48 )
+Sensor.WriteI2CRegister ( gv_port , gv_address , 4 , 12 )
+gv_w [ 0 ] = 15
+gv_w [ 1 ] = 16
+gv_w [ 2 ] = 17
+Sensor.WriteI2CRegisters ( gv_port , gv_address , 5 , 3 , gv_w )
+LCD.Clear ()
+gv_r = Sensor.ReadI2CRegisters ( gv_port , gv_address , 0 , 5 )
+For gv_reg = 0 To 4
+LCD.Write ( 0 , gv_reg * 16 , gv_reg + ": " + gv_r [ gv_reg ] )
+EndFor
+For gv_reg = 5 To 7
+LCD.Write ( 0 , gv_reg * 16 , gv_reg + ": " + Sensor.ReadI2CRegister ( gv_port , gv_address , gv_reg ) )
+EndFor
+Program.Delay ( 10000 )

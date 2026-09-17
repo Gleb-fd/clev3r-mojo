@@ -1,0 +1,25 @@
+gv_s = 0
+gv_p = 0
+gv_x = 0
+gv_y = 0
+While "True"
+LCD.StopUpdate ()
+LCD.Clear ()
+LCD.Text ( 1 , 0 , 0 , 1 , "Plug touch sensors to" )
+LCD.Text ( 1 , 0 , 12 , 1 , "various ports and " )
+LCD.Text ( 1 , 0 , 24 , 1 , "press them..." )
+For gv_s = 1 To 4
+gv_p = Sensor.ReadPercent ( gv_s )
+gv_x = gv_s * 40 - 30
+gv_y = 60
+If gv_p = 100 Then
+LCD.FillRect ( 1 , gv_x , gv_y , 30 , 30 )
+LCD.Text ( 1 , gv_x + 2 , gv_y + 10 , 1 , gv_p )
+else
+LCD.Rect ( 1 , gv_x , gv_y , 30 , 30 )
+LCD.Text ( 1 , gv_x + 10 , gv_y + 10 , 1 , gv_p )
+Endif
+endfor
+LCD.Update ()
+Program.Delay ( 100 )
+EndWhile

@@ -1,0 +1,32 @@
+gv_selectmode = 0
+gv_raw [ 0 ] = 0
+gv_i = 0
+gv_click = ""
+gv_selectmode = 0
+Sensor.SetMode ( 1 , gv_selectmode )
+While "True"
+LCD.StopUpdate ()
+LCD.Clear ()
+LCD.Write ( 0 , 0 , Sensor.GetName ( 1 ) )
+LCD.Write ( 0 , 16 , "MODE: " + Sensor.GetType ( 1 ) + ":" + Sensor.GetMode ( 1 ) + " (" + gv_selectmode + ")" )
+LCD.Write ( 0 , 32 , "PERCENT: " + Sensor.ReadPercent ( 1 ) )
+gv_raw = Sensor.ReadRaw ( 1 , 8 )
+For gv_i = 0 To 3
+LCD.Write ( 0 , 64 + gv_i * 16 , "RAW" + gv_i + ":" + gv_raw [ gv_i ] )
+endfor
+For gv_i = 4 To 7
+LCD.Write ( 80 , 64 + ( gv_i - 4 ) * 16 , "RAW" + gv_i + ":" + gv_raw [ gv_i ] )
+endfor
+LCD.Update ()
+Program.Delay ( 200 )
+gv_click = Buttons.GetClicks ()
+If Text.IsSubText ( gv_click , "U" ) then
+gv_selectmode = gv_selectmode + 1
+Sensor.SetMode ( 1 , gv_selectmode )
+ElseIf Text.IsSubText ( gv_click , "D" ) then
+gv_selectmode = gv_selectmode - 1
+Sensor.SetMode ( 1 , gv_selectmode )
+ElseIf Text.IsSubText ( gv_click , "E" ) then
+Sensor.SetMode ( 1 , gv_selectmode )
+endif
+EndWhile

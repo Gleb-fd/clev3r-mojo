@@ -1,0 +1,27 @@
+lv_r_1 = 0
+lv_g_1 = 0
+lv_b_1 = 0
+gv_r = 0
+gv_g = 0
+gv_b = 0
+gv_r = 1
+gv_g = 2
+gv_b = 3
+Sensor.SetMode ( 1 , 4 )
+Sensor1.Raw3 ( gv_r , gv_g , gv_b )
+lv_r_1 = gv_r
+lv_g_1 = gv_g
+lv_b_1 = gv_b
+f_writergbtoscreen_3 ()
+Sub f_writergbtoscreen_3
+LCD.Clear ()
+If lv_r_1 = 1 Then
+lv_r_1 = 1
+Else
+lv_r_1 = 2
+EndIf
+LCD.Text ( 1 , 10 , 10 , 2 , "R = " + lv_r_1 )
+LCD.Text ( 1 , 10 , 30 , 2 , "G = " + lv_g_1 )
+LCD.Text ( 1 , 10 , 50 , 2 , "B = " + lv_b_1 )
+Program.Delay ( 5000 )
+EndSub

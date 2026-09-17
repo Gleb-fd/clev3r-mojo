@@ -1,0 +1,27 @@
+lv_a_1 = 0
+lv_b_1 = 0
+lv_c_1 = 0
+lv_fontcolor_2 = 0
+lv_x_2 = 0
+lv_y_2 = 0
+lv_fontsize_2 = 0
+lv_message_2 = 0
+gv_c = 0
+lv_a_1 = 10
+lv_b_1 = 20
+f_math_3 ()
+gv_c = lv_c_1
+lv_fontcolor_2 = 1
+lv_x_2 = 20
+lv_y_2 = 20
+lv_fontsize_2 = 2
+lv_message_2 = gv_c
+f_writetoscreen_5 ()
+Sub f_math_3
+lv_c_1 = lv_a_1 + lv_b_1
+EndSub
+Sub f_writetoscreen_5
+LCD.Clear ()
+LCD.Text ( lv_fontcolor_2 , lv_x_2 , lv_y_2 , lv_fontsize_2 , lv_message_2 )
+LCD.Update ()
+EndSub

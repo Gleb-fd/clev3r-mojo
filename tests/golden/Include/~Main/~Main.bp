@@ -1,0 +1,14 @@
+gv_r = 0
+gv_g = 0
+gv_b = 0
+gv_power = 0
+gv_r = 0
+gv_g = 0
+gv_b = 0
+Sensor1.Raw3 ( gv_r , gv_g , gv_b )
+gv_power = 50
+MotorA.IsMedium ()
+MotorB.IsMedium ()
+MotorAB.OffAndBrake ()
+MotorAB.Start ()
+MotorAB.SetPower ( gv_power )

@@ -1,0 +1,430 @@
+DATA16 FD_NATIVECODECOMMAND
+DATA16 FD_NATIVECODERESPONSE
+DATA32 STOPLCDUPDATE
+DATA32 NUMMAILBOXES
+ARRAY8 MOTORISINVERTED 4     
+ARRAY8 FIRSTOF2  16
+ARRAY16 LOCKS 2           
+DATA32 s1out1
+DATA32 s1out2
+DATA32 s1out3
+DATA32 s2out1
+DATA32 s2out2
+DATA32 s2out3
+DATA32 s3out1
+DATA32 s3out2
+DATA32 s3out3
+DATA32 s4out1
+DATA32 s4out2
+DATA32 s4out3
+DATA32 getTachoA
+DATA32 tmpTachoA
+DATA8 getSpeedA
+DATA8 setSpeedA
+DATA8 setPowerA
+DATA32 getTachoB
+DATA32 tmpTachoB
+DATA8 getSpeedB
+DATA8 setSpeedB
+DATA8 setPowerB
+DATA32 getTachoC
+DATA32 tmpTachoC
+DATA8 getSpeedC
+DATA8 setSpeedC
+DATA8 setPowerC
+DATA32 getTachoD
+DATA32 tmpTachoD
+DATA8 getSpeedD
+DATA8 setSpeedD
+DATA8 setPowerD
+DATA16 newArray1d
+DATA32 newSize1d
+DATA32 newIndex1d
+DATA32 timeMC1
+DATA32 timeMC2
+DATA32 timeMC3
+DATA32 timeMC4
+DATA32 timeMC5
+DATA32 timeMC6
+DATA32 timeMC7
+DATA32 timeMC8
+DATA32 timeMC9
+DATA32 timeMC1tmp
+DATA32 timeMC2tmp
+DATA32 timeMC3tmp
+DATA32 timeMC4tmp
+DATA32 timeMC5tmp
+DATA32 timeMC6tmp
+DATA32 timeMC7tmp
+DATA32 timeMC8tmp
+DATA32 timeMC9tmp
+ARRAY16 VGV_SMALL 2
+ARRAY16 VGV_BIG 2
+ARRAY16 VGV_A 2
+DATA32 RUNCOUNTER_F_SUB2_0
+DATA32 RUNCOUNTER_F_SUB1_0
+
+vmthread MAIN
+{
+    MOVE32_32 0 STOPLCDUPDATE
+    MOVE32_32 0 NUMMAILBOXES
+    OUTPUT_RESET 0 15
+
+	WRITE8 0 0 MOTORISINVERTED
+	WRITE8 0 1 MOTORISINVERTED
+	WRITE8 0 2 MOTORISINVERTED
+	WRITE8 0 3 MOTORISINVERTED
+	WRITE8 0 0 FIRSTOF2
+	WRITE8 0 1 FIRSTOF2
+	WRITE8 0 2 FIRSTOF2
+	WRITE8 1 3 FIRSTOF2
+	WRITE8 0 4 FIRSTOF2
+	WRITE8 1 5 FIRSTOF2
+	WRITE8 2 6 FIRSTOF2
+	WRITE8 0 7 FIRSTOF2
+	WRITE8 0 8 FIRSTOF2
+	WRITE8 1 9 FIRSTOF2
+	WRITE8 2 10 FIRSTOF2
+	WRITE8 0 11 FIRSTOF2
+	WRITE8 4 12 FIRSTOF2
+	WRITE8 0 13 FIRSTOF2
+	WRITE8 0 14 FIRSTOF2
+	WRITE8 0 15 FIRSTOF2
+    INPUT_DEVICE CLR_ALL -1
+    ARRAY CREATE8 0 LOCKS
+    MOVE32_32 0 s1out1
+	MOVE32_32 0 s1out2
+	MOVE32_32 0 s1out3
+    MOVE32_32 0 s2out1
+	MOVE32_32 0 s2out2
+	MOVE32_32 0 s2out3
+    MOVE32_32 0 s3out1
+	MOVE32_32 0 s3out2
+	MOVE32_32 0 s3out3
+    MOVE32_32 0 s4out1
+	MOVE32_32 0 s4out2
+	MOVE32_32 0 s4out3
+    MOVE32_32 0 timeMC1
+	MOVE32_32 0 timeMC2
+	MOVE32_32 0 timeMC3
+	MOVE32_32 0 timeMC4
+	MOVE32_32 0 timeMC5
+	MOVE32_32 0 timeMC6
+	MOVE32_32 0 timeMC7
+	MOVE32_32 0 timeMC8
+	MOVE32_32 0 timeMC9
+    CALL ARRAYCREATE_FLOAT VGV_SMALL
+    CALL ARRAYCREATE_FLOAT VGV_BIG
+    CALL ARRAYCREATE_FLOAT VGV_A
+    MOVE32_32 0 RUNCOUNTER_F_SUB2_0
+    MOVE32_32 0 RUNCOUNTER_F_SUB1_0
+    ARRAY CREATE8 1 LOCKS
+    CALL PROGRAM_MAIN -1
+    PROGRAM_STOP -1
+}
+vmthread TF_SUB2_0
+{
+    DATA32 tmp
+  launch:
+    CALL PROGRAM_F_SUB2_0 0
+    CALL GETANDINC32 RUNCOUNTER_F_SUB2_0 -1 RUNCOUNTER_F_SUB2_0 tmp
+    JR_GT32 tmp 1 launch
+}
+vmthread TF_SUB1_0
+{
+    DATA32 tmp
+  launch:
+    CALL PROGRAM_F_SUB1_0 1
+    CALL GETANDINC32 RUNCOUNTER_F_SUB1_0 -1 RUNCOUNTER_F_SUB1_0 tmp
+    JR_GT32 tmp 1 launch
+}
+subcall PROGRAM_MAIN
+subcall PROGRAM_F_SUB2_0
+subcall PROGRAM_F_SUB1_0
+{
+    IN_32 SUBPROGRAM
+    DATA32 INDEX
+    ARRAY8 STACKPOINTER 4
+    ARRAY32 RETURNSTACK2 128
+    ARRAY32 RETURNSTACK 128
+    MOVE8_8 0 STACKPOINTER
+    JR_NEQ32 SUBPROGRAM 0 dispatch15
+    WRITE32 ENDSUB_F_SUB2_0:ENDTHREAD STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_SUB2_0
+  dispatch15:
+    JR_NEQ32 SUBPROGRAM 1 dispatch16
+    WRITE32 ENDSUB_F_SUB1_0:ENDTHREAD STACKPOINTER RETURNSTACK
+    ADD8 STACKPOINTER 1 STACKPOINTER
+    JR SUB_F_SUB1_0
+  dispatch16:
+    CALL ARRAYSTORE_FLOAT 0.0 0.0 VGV_SMALL
+    CALL ARRAYSTORE_FLOAT 0.0 0.0 VGV_BIG
+    CALL LCD.CLEAR
+    CALL VECTOR.INIT 5.0 141.0 VGV_SMALL
+    CALL VECTOR.INIT 500.0 17.0 VGV_BIG
+    DATA32 tmp5
+    CALL GETANDINC32 RUNCOUNTER_F_SUB2_0 1  RUNCOUNTER_F_SUB2_0 tmp5
+    JR_NEQ32 0 tmp5 alreadylaunched5
+    OBJECT_START TF_SUB2_0
+  alreadylaunched5:
+    DATA32 milliseconds6
+	MOVEF_32 20.0 milliseconds6
+	DATA32 timer6
+	TIMER_WAIT milliseconds6 timer6
+	TIMER_READY timer6
+    DATA32 tmp7
+    CALL GETANDINC32 RUNCOUNTER_F_SUB1_0 1  RUNCOUNTER_F_SUB1_0 tmp7
+    JR_NEQ32 0 tmp7 alreadylaunched7
+    OBJECT_START TF_SUB1_0
+  alreadylaunched7:
+    DATA32 milliseconds8
+	MOVEF_32 100000.0 milliseconds8
+	DATA32 timer8
+	TIMER_WAIT milliseconds8 timer8
+	TIMER_READY timer8
+ENDTHREAD:
+    RETURN
+SUB_F_SUB1_0:
+    CALL LCD.TEXT 1.0 0.0 12.0 1.0 'Small sort starting'
+    CALL VECTOR.SORT 5.0 VGV_SMALL VGV_A
+    CALL LCD.TEXT 1.0 0.0 24.0 1.0 'Small sort finished'
+RETSUB_F_SUB1_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_SUB1_0:
+SUB_F_SUB2_0:
+    CALL LCD.TEXT 1.0 0.0 48.0 1.0 'Big sort starting'
+    CALL VECTOR.SORT 500.0 VGV_BIG VGV_A
+    CALL LCD.TEXT 1.0 0.0 60.0 1.0 'Big sort finished'
+RETSUB_F_SUB2_0:
+    SUB8 STACKPOINTER 1 STACKPOINTER
+    READ32 RETURNSTACK STACKPOINTER INDEX
+    JR_DYNAMIC INDEX
+ENDSUB_F_SUB2_0:
+}
+subcall ARRAYSTORE_FLOAT   // FFFV
+{
+	IN_F index
+	IN_F value	
+	IN_16 handle
+	
+	DATA32 index32
+	DATA32 len	
+	MOVEF_32 index index32
+
+	ARRAY SIZE handle len
+	JR_LT32 index32 0 negativeindex
+	JR_LT32 index32 len arraybigenough
+
+increasesize:	
+	DATA32 doublelen
+	ADD32 len len doublelen
+	ARRAY RESIZE handle doublelen
+writeloop:	
+	ARRAY_WRITE handle len 0.0
+	ADD32 len 1 len
+	JR_LT32 len doublelen writeloop
+	JR_GTEQ32 index32 len increasesize
+	
+arraybigenough:
+	ARRAY_WRITE handle index32 value
+negativeindex:
+}
+subcall LCD.CLEAR   // V
+{
+	UI_DRAW(TOPLINE,0)
+	UI_DRAW(CLEAN)
+	
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall VECTOR.INIT       // FFA
+{
+	IN_F size
+	IN_F value
+	IN_16 a
+
+	DATA32 size32
+	MOVEF_32 size size32
+	JR_LTEQ32 size32 0 empty
+
+	ARRAY RESIZE a size32
+	ARRAY FILL a value
+	RETURN
+
+empty:
+    ARRAY RESIZE a 0
+}
+subcall LCD.TEXT     // FFFFSV
+{
+	IN_F col
+	IN_F x
+	IN_F y
+	IN_F font
+	IN_S text 252
+	
+	DATA8 col_8
+	DATA16 x_16
+	DATA16 y_16
+	DATA8 font_8	
+	MOVEF_8 col col_8
+	MOVEF_16 x x_16
+	MOVEF_16 y y_16
+	MOVEF_8 font font_8
+	
+	UI_DRAW SELECT_FONT font_8
+	UI_DRAW TEXT col_8 x_16 y_16 text
+
+	JR_NEQ32 0 STOPLCDUPDATE skipupdate
+	UI_DRAW UPDATE
+skipupdate:
+}
+subcall VECTOR.SORT       // FAA
+{
+    IN_F  num  // number of elements
+	IN_16 a    // original array
+	IN_16 arr    // where to store
+
+	DATA32 elements
+	MOVEF_32 num elements
+	JR_GT32 elements 0 notempty
+    ARRAY RESIZE arr 0	
+	RETURN
+notempty:
+	
+	// memorize the original size of the input array
+	DATA32 sizea
+	ARRAY SIZE a sizea
+
+	JR_EQ16 a arr output_is_same_array
+	// if output array is not identical to input array, transfer data
+	ARRAY COPY a arr
+output_is_same_array:
+	// resize it  to correct size
+	ARRAY RESIZE arr elements
+	// resizing does not create 0 values, must create manually
+	JR_GTEQ32 sizea elements nomoreelementsneeded
+fillloop:
+	ARRAY_WRITE arr sizea 0.0
+	ADD32 sizea 1 sizea
+	JR_LT32 sizea elements fillloop
+nomoreelementsneeded:
+
+
+                                                 // //  quickSort
+                                                 // //
+                                                 // //  This public-domain C implementation by Darel Rex Finley.
+                                                 // //
+                                                 // //  * This function assumes it is called with valid parameters.
+                                                 // //
+                                                 // //  * Example calls:
+                                                 // //    quickSort(&myArray[0],5); // sorts elements 0, 1, 2, 3, and 4
+                                                 // //    quickSort(&myArray[3],5); // sorts elements 3, 4, 5, 6, and 7
+                                                 //
+                                                 // void quickSort(int *arr, int elements) {
+                                                 // 
+                                                 //  #define  MAX_LEVELS  300
+                                                 //
+    DATAF piv                                    //  int piv;
+	DATA8 i                                      //  int i=0;
+    MOVE8_8 0 i                                 
+	DATA32 L                                     //  int L;
+	DATA32 R                                     //  int R;
+	DATA32 swap                                  //  int SWAP;
+	ARRAY32 beg 128                              //  int beg[MAX_LEVELS];
+	ARRAY32 end 128                              //  int end[MAX_LEVELS];
+                                                 
+	WRITE32 0 0 beg                              //  beg[0]=0; 
+	WRITE32 elements 0 end                       //  end[0]=elements;
+while1:                                          //  while (i>=0) {
+    READ32 beg i L                               //    L=beg[i]; 
+	READ32 end i R                               //    R=end[i]-1;
+	SUB32 R 1 R
+    JR_GTEQ32 L R else1                          //    if (L<R) {
+    ARRAY_READ arr L piv                         //      piv=arr[L];
+    JR_GTEQ32 L R endwhile2                      //      while (L<R) {
+while2:                                          
+while3:         								 //        while (arr[R]>=piv && L<R) 
+    DATAF tmpf
+	ARRAY_READ arr R tmpf
+	JR_LTF tmpf piv endwhile3
+	JR_GTEQ32 L R endwhile3
+    SUB32 R 1 R                                  //           R--; 
+	JR while3											  
+endwhile3:
+	JR_GTEQ32 L R endif2                         //        if (L<R) 
+	ARRAY_READ arr R tmpf						 //           arr[L++]=arr[R];
+	ARRAY_WRITE arr L tmpf
+	ADD32 L 1 L
+endif2:
+while4:                                          //        while (arr[L]<=piv && L<R) 
+    ARRAY_READ arr L tmpf
+	JR_GTF tmpf piv endwhile4
+	JR_GTEQ32 L R endwhile4
+	ADD32 L 1 L								     //            L++; 
+	JR while4
+endwhile4:
+	JR_GTEQ32 L R endif3						 //        if (L<R) 
+	ARRAY_READ arr L tmpf						 //            arr[R--]=arr[L]; 
+	ARRAY_WRITE arr R tmpf
+	SUB32 R 1 R
+endif3:  											     
+    JR_LT32 L R while2                           //      }
+endwhile2:
+    ARRAY_WRITE arr L piv                        //      arr[L]=piv; 
+	DATA8 ip1									 //      beg[i+1]=L+1; 
+	ADD8 i 1 ip1
+	DATA32 tmp32
+	ADD32 L 1 tmp32
+	WRITE32 tmp32 ip1 beg
+	READ32 end i tmp32  						 //      end[i+1]=end[i]; 
+	WRITE32 tmp32 ip1 end
+	WRITE32 L i end	   						     //      end[i++]=L;
+	ADD8 i 1 i
+    DATA8 im1                                    //      if (end[i]-beg[i]>end[i-1]-beg[i-1]) {
+	SUB8 i 1 im1
+	DATA32 diff1
+	DATA32 diff2
+	READ32 end i diff1
+	READ32 beg i tmp32
+	SUB32 diff1 tmp32 diff1
+	READ32 end im1 diff2
+	READ32 beg im1 tmp32
+	SUB32 diff2 tmp32 diff2
+	JR_LTEQ32 diff1 diff2 endif4
+    READ32 beg i swap                            //        swap=beg[i]; 
+	READ32 beg im1 tmp32						 //        beg[i]=beg[i-1]; 
+	WRITE32 tmp32 i beg
+	WRITE32 swap im1 beg						 //        beg[i-1]=swap;
+    READ32 end i swap                            //        swap=end[i];
+	READ32 end im1 tmp32						 //        end[i]=end[i-1]; 
+	WRITE32 tmp32 i end
+	WRITE32 swap im1 end						 //        end[i-1]=swap; 
+endif4:											 //      }
+	JR endif1									 //    }
+else1:                                           //    else {
+    SUB8 i 1 i                                   //      i--;
+endif1:											 //    }
+	JR_GTEQ8 i 0 while1  						 //  }
+												 // }    
+}
+subcall ARRAYCREATE_FLOAT   // F
+{
+	OUT_16 handle
+	
+	ARRAY CREATEF 8 handle			// create with 8 elements
+	ARRAY FILL handle 0.0
+}
+subcall GETANDINC32     // V
+{
+	IN_32 counterin
+	IN_32 inc
+	OUT_32 counterout
+	OUT_32 prev
+
+	MOVE32_32 counterin prev
+	ADD32 counterin inc counterout
+}

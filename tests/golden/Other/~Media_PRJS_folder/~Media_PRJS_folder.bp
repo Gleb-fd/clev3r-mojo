@@ -1,0 +1,4 @@
+LCD.Clear ()
+LCD.BmpFile ( 1 , 0 , 0 , "MediaTest/Media/Tired middle" )
+Speaker.Play ( 100 , "MediaTest/Media/Cat purr" )
+Program.Delay ( 1000000 )
