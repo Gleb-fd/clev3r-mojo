@@ -41,9 +41,20 @@ for bp in "${FILES[@]}"; do
             got="$dir/~$name/~$name.bp"; ref="$gdir/~$name.bp"
             ;;
         lmsb)
+            # стадия 3: компиляция РАЗВЁРНУТОГО исходника (если развёртка удалась)
+            if [[ -f "$dir/~$name/~$name.bp" ]]; then
+                "$BP" lmsb "$dir/~$name/~$name.bp" >/dev/null 2>&1
+            fi
             got="$dir/~$name/$name.lmsb"; ref="$gdir/$name.lmsb"
             ;;
         rbf)
+            # стадии 3+4: компиляция развёрнутого исходника, затем сборка листинга
+            if [[ ! -f "$dir/~$name/$name.lmsb" && -f "$dir/~$name/~$name.bp" ]]; then
+                "$BP" lmsb "$dir/~$name/~$name.bp" >/dev/null 2>&1
+            fi
+            if [[ -f "$dir/~$name/$name.lmsb" ]]; then
+                "$BP" rbf "$dir/~$name/$name.lmsb" >/dev/null 2>&1
+            fi
             got="$dir/~$name/$name.rbf"; ref="$gdir/$name.rbf"
             ;;
         *) echo "неизвестная стадия: $STAGE"; exit 2 ;;
