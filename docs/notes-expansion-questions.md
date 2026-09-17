@@ -1,39 +1,74 @@
 # Открытые вопросы по развёртке (стадия 1-2 → `~Name.bp`)
 
 Наблюдения сделаны сравнением `tests/corpus/**` и `tests/golden/**/~Name.bp`.
-Каждый пункт нужно закрыть по C#-исходнику перед реализацией соответствующей части.
+Каждый пункт закрыт по C#-исходнику и подтверждён byte-паритетом `tools/difftest.sh expand`
+(42/44: fail = Include/Main — include вне задачи; skip = New_Path_Examples — у оракула
+нет эталона из-за бага с `..`).
 
-## 1. Нумерация `break_N` / `continue_N`
+## 1. Нумерация `break_N` / `continue_N` — ЗАКРЫТО
 
-`tests/corpus/BreakAndContinue/BreakAndContinueTest.bp` → эталон развёртки:
+Алгоритм — `LineErrorParser.Start` (LineErrorParser.cs:115-118) + `ParseJumpOperators`
+(131-203) + `ParseBrakeAndContinue` (205-271); работает по ПЛОСКОМУ списку вывода
+(после RewriteOutLines), вызывается трижды подряд:
 
-| Оператор в исходнике | Метка в эталоне | Позиция в файле |
-|---|---|---|
-| `Break` в `For i` | `break_1` | `Goto break_1`, метка `break_1:` в самом конце |
-| `continue` в `For j` | `continue_2` | метка перед `EndFor` внутреннего цикла |
-| `break` в `Else` (For j) | `break_3` | там же |
-| `Break` в `For b` | `break_4` | метка перед `EndFor` цикла b |
-| `break` в `While` | `break_5` | метка перед `EndWhile` |
+1. `ParseJumpOperators(lines, FORINIT)` — по всем For-блокам;
+2. `ParseJumpOperators(lines, WHILEINIT)` — по всем While-блокам;
+3. `ParseJumpOperators(lines, SUBINIT)` — по всем Sub/Function-блокам (только `return`).
 
-Порядок ПОЯВЛЕНИЯ операторов: i-break, j-continue, j-break, **while-break, b-break** →
-дал бы номера while=4, b=5. В эталоне наоборот: **b=4, while=5**.
-Порядок ВЫДАЧИ меток в файле: continue_2, break_3, break_5, break_4, break_1.
-Гипотеза: номер выдаётся в момент вставки метки в выходной список, а вставка идёт
-не в порядке появления блоков. Нужно прочитать `Parsers/LineErrorParser.cs:205-271`
-(и `Utils/Interpreter.cs`) и зафиксировать точный алгоритм.
+Внутри одного вызова блоки обрабатываются в порядке появления НАЧАЛА блока в плоском
+списке (снаружи внутрь: внешний For находит свой парный EndFor раньше внутреннего,
+внутренний обрабатывается на следующей итерации внешнего цикла). **Поэтому все For-блоки
+получают номера раньше всех While-блоков, а While — раньше return'ов**, что и объясняет
+наблюдение (b=4 до while=5). Внутри блока сначала обрабатываются `continue`, потом
+`break` (два вызова ParseBrakeAndContinue подряд).
 
-## 2. Порядок инициализации переменных
+Счётчик `Data.Project.BreakPoint` сквозной, инкрементируется ОДИН раз на пару
+(блок, тип jump) при наличии хотя бы одного jump: метка = `jumpWord_N`. Несколько
+`break`/`continue` в одном блоке → одна и та же метка. `return` игнорирует вложенность
+циклов (`flagLoop == 0 || jumpWord == "return"`, cs:218).
 
-В начале `~Name.bp` идут `gv_* = 0` для всех переменных MAIN. Порядок в примере:
-`gv_y, gv_i, gv_j, gv_b` — совпадает с порядком первого появления, но нужно проверить
-на программах со смешанными типами (`gv_s = ""`, массивы `[0]=0`) и с переменными,
-встречающимися только в подпрограммах. См. `Utils/Interpreter.cs:448-652`.
+Размещение меток (cs:245-269): `continue`/`return` — метка ПЕРЕД end-строкой
+(`[метка, EndFor]`), `break` — ПОСЛЕ (`[EndFor, метка]`; если у end-строки уже есть
+OutLines от continue — просто дописывается в конец). Сам end-строка добавляется в свой
+собственный OutLines (самоссылка — рекурсии при выводе нет: GetOutFile не рекурсивный).
+`Goto <метка>` — с заглавной буквы, токен KEYWORD/LABELNAME; метки НЕ получают `gl_`
+(создаются после VarsAndLabelsRename).
 
-## 3. Пустая строка в конце файла
+## 2. Порядок инициализации переменных — ЗАКРЫТО
 
-`lines_to_text` должен точно повторять `File.WriteAllLines` (перевод строки после
-последней строки или нет). Проверить `cmp` на эталоне: у большинства golden-файлов
-размер на 1 больше суммы длин строк.
+Секции 1-2 вывода (`CreateProjectOutputLines`, Interpreter.cs:345-446):
+
+1. **`varInit` = параметры функций** (временные `lv_*`): словарь `variables`
+   из `ParseOneCall`, порядок вставки = порядок обхода листов main → subs → funcs →
+   methods, внутри листа — порядок строк-вызовов, внутри вызова — порядок параметров
+   (in и out вперемешку, как в сигнатуре). Тип init-строки — тип ПАРАМЕТРА из сигнатуры.
+2. **`varInit` += остальные переменные** (`OtherVarsAddToMain`, Interpreter.cs:606-652):
+   обход `Data.Project.Variables` в порядке вставки. Порядок регистрации:
+   - сначала out-цели вызовов (Interpreter.cs:278-281 — `gv_c` и т.п., тип = тип
+     out-параметра) — ParseCalls идёт ДО SubVarsInit;
+   - затем тело main (SubVarsInit, Interpreter.cs:538-604): VARINIT/VARARRAYINIT/FORINIT
+     регистрируют переменную при первом присваивании (VariableErrorParser.cs:641-666);
+     строка SUBCALL рекурсивно раскрывает тело sub (один раз на имя, набор
+     `tmpSubCalls` сквозной) — переменные sub'а встают в позицию ПЕРВОГО вызова;
+   - переменные тел Function НЕ регистрируются вообще (Interpreter.cs:54-56 — код
+     «пропарсить все функции» не написан): параметров хватает (их init — секция 1),
+     остальные локальные переменные функций init-строк НЕ получают.
+3. Тип выводится из RHS: NUMBER/STRING-литерал, тип переменной, элемент массива
+   (NUMBER_ARRAY→NUMBER, STRING_ARRAY→STRING), OutputType встроенного метода
+   (DefaultObjectList, см. src/bp/builtins.mojo), целая массивная переменная →
+   NUMBER_ARRAY/STRING_ARRAY; смешение через `+` → STRING (флаг badString,
+   VariableErrorParser.cs:643-646). VARARRAYINIT-регистрация маппит
+   NUMBER/NUMBER_ARRAY → NUMBER_ARRAY, STRING/STRING_ARRAY → STRING_ARRAY.
+
+Порядок подтверждён дампом `Data.Project.Variables` оракула (reflection) на
+TowersOfHanoi: `gv_tower(строка 4), gv_i, gv_j, gv_w (sub draw на строке вызова 46-48),
+gv_a, gv_b, gv_n (sub solve), gv_l, gv_newb` — совпадает с Mojo-выводом байт-в-байт.
+
+## 3. Пустая строка в конце файла — ЗАКРЫТО
+
+`Builder.GetOutFile` (Builder.cs:486-506) собирает List<string>, пишет
+`File.WriteAllLines` → `\n` после КАЖДОЙ строки, включая последнюю. В Mojo это
+`util.lines_to_text`. Проверено `cmp`-размерами golden-файлов.
 
 ## 4. Баг с `..` в путях include/import (C#)
 
@@ -43,15 +78,27 @@ C# `IncludeErrorParser.CreateFullPath` при подъёме на уровень
 в относительный и файл не находится:
 `Файл не найден home/ssssq/.../New_Path_Examples/Modules/Module1.bpm`.
 Это единственный пример корпуса, который оракул не скомпилировал (43/44 успешных).
-Решение: воспроизводить баг не нужно, но и не «исправлять» молча — задокументировать.
+Решение: воспроизводить баг не нужно, но и не «исправлять» молча — задокументировано;
+программа исключена из difftest (skip=1, эталона нет).
 
-## 5. `thread.run = ИМЯ`
+## 5. `thread.run = ИМЯ` — ЗАКРЫТО
 
-Слово после `=` получает токен SUBNAME только по эвристике на позициях в **исходной**
-строке (`Utils/TokenBuilder.cs:153-163`). Проверить, как это выглядит в развёртке.
+`Thread.Run = BLINKER` — LineType.METHODCALL; слово после `=` — SUBNAME (эвристика
+лексера по позициям в исходной строке). FuncRename (Linker.cs:380-394) даёт
+`f_blinker_0` (GetParamCount: первое слово `thread.run` → 0 параметров). Строка
+остаётся `Thread.Run = f_blinker_0`; имя добавляется в `callsSub` (Interpreter.cs:726-751),
+поэтому sub сохраняется от удаления. Подтверждено на Other/Threads.bp (byte-parity).
 
-## 6. Медиа-пути
+## 6. Медиа-пути — ЗАКРЫТО
 
-`lcd.bmpfile`/`speaker.play` переписывают строковый аргумент с префиксом
-`{Проект}/Media/` (см. `Utils/MediaBuilder.cs`). В развёртке это видно как изменённый
-строковый литерал — сверить на `tests/corpus/Other/GraphicsAndSounds.bp`.
+`MediaBuilder.ParseMedia` (MediaBuilder.cs:14-124) вызывается из MethodErrorParser
+(дедуп по `FileName_Number`), только если `Data.Project.IsFolder` (успешная директива
+`folder`). Для `lcd.bmpfile`/`speaker.play`/`ev3file.openwrite|openappend|openread`
+строка переписывается: `play + '"' + <Префикс><имя> + '")'` — хвост строки ЗАМЕНЯЕТСЯ
+на `")` (квирк: строка должна быть последним аргументом); для `ev3file.tablelookup`
+хвост после закрывающей кавычки сохраняется и добавляется лишняя `)`.
+Префикс: `prjs` → `<Проект>/Media/` (ev3file → `/Files/`), `sd` → `SD_Card/<Проект>/Media/`;
+без имени проекта/без folder — строка не меняется. Переписанный текст заново
+прогоняется через LineBuilder.GetWords (слова и токены пересоздаются). Регистрация
+в ImageList/SoundList/FileList влияет только на стадию 4 (.lmsb), не на ~Name.bp.
+Подтверждено: Other/Media_PRJS_folder.bp, Other/Media_SD_folder.bp (byte-parity).
