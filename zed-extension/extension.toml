@@ -14,7 +14,7 @@ repository = "https://github.com/clev3r/clev3r_mojo"
 # repo URL and pin the commit there.
 [grammars.basic_plus]
 repository = "file:///home/ssssq/Projects/clev3r_mojo"
-rev = "a9398b6560d2005d4b82a384d58e8ea0dbd3136c"
+rev = "76081a635ac2fa0dbb6d0727c043a996a599603d"
 path = "grammar"
 
 # Language server provided by the local `tools/bp lsp` binary (dev path).
