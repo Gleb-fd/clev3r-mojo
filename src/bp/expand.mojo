@@ -1,9 +1,13 @@
 """Развёртка BP-программы: препроцессор + линковка + интерпретация -> `~<Имя>.bp`.
 
 Порт фаз C# (файлы не менялись):
-  Interpreter/Utils/Linker.cs        — AddIncludesToMain (283-308), FuncRename (324-446),
-                                       VarsAndLabelsRename (448-622), RemoveMainFunc/RemoveMainSub,
-                                       CreateFunctionsDicionary/CreateSubsDicionary
+  bp/preproc.mojo                   — include (.bpi) / import (.bpm): IncludeErrorParser,
+                                      ImportErrorParser, FirstFindFiles, AddIncludesToMain,
+                                      реестры модулей + замыкание вызовов методов
+  Interpreter/Utils/Linker.cs        — FuncRename (324-446), VarsAndLabelsRename (448-622),
+                                      CreateCallingPropertyLines (788-858),
+                                      RemoveMainFunc/RemoveMainSub,
+                                      CreateFunctionsDicionary/CreateSubsDicionary
   Interpreter/Utils/Interpreter.cs   — ParseAllCalls (654-754), ParseFuncInitLine (125-174),
                                        ParseCalls/ParseOneCall (176-343), FuncVariablesInit (448-487),
                                        SubVarsInit (538-604), OtherVarsAddToMain (606-652),
@@ -39,7 +43,13 @@
   * `--`/`++`/`+=` разворачиваются в `x = x OP ...` в основном тексте (SubVarsInit)
     и в телах Function (повторный проход VariableErrorParser.Start);
   * `thread.run = ИМЯ` — METHODCALL; ИМЯ получает f_<имя>_0 и идёт в callsSub;
-  * out-параметр-элемент массива даёт VARARRAYINIT-строку `<var> [ i ] = lv_p_N`.
+  * out-параметр-элемент массива даёт VARARRAYINIT-строку `<var> [ i ] = lv_p_N`;
+   * модули (docs/02 §5, §8): тела методов модулей собираются в ModuleMethodsText и
+     выводятся ПОСЛЕ функций main, их FUNCINIT -> `Sub m_<модуль>_<имя>_<N>`;
+     вызовы методов -> `m_<модуль>_<метод>_<N>`, свойства -> `pr_<модуль>_<свойство>`;
+     init-строки использованных свойств идут ПЕРВОЙ секцией вывода; счётчики lv_/ll_
+     сквозные через main и методы модулей, но в проходе методов FUNCINIT
+     инкрементирует только lv-счётчик (квирк Linker.cs:549-553).
 """
 
 from std.collections import Dict
@@ -63,6 +73,7 @@ from bp.lexer import (
     TOK_MATHOPERATOR,
     TOK_METHOD,
     TOK_MODULEMETHOD,
+    TOK_MODULEPROPERTY,
     TOK_NUMBER,
     TOK_STRING,
     TOK_SUBNAME,
@@ -71,9 +82,11 @@ from bp.lexer import (
     LT_FOLDER,
     LT_FORINIT,
     LT_FUNCINIT,
+    LT_FUNCCALL,
     LT_IMPORT,
     LT_METHODCALL,
     LT_MODULEMETHODCALL,
+    LT_MODULEPROPERTY,
     LT_ONEKEYWORD,
     LT_SUBCALL,
     LT_SUBINIT,
@@ -85,6 +98,16 @@ from bp.lexer import (
 )
 from bp.util import base_name, dir_name, lines_to_text, read_lines, strip_ext, write_text
 from bp.diag import Diagnostics
+from bp.preproc import (
+    Preproc,
+    add_includes_to_main,
+    collect_module_methods,
+    first_find_files,
+    method_name_of,
+    module_name_of,
+    param_count_linker,
+    parse_module_methods_in_main,
+)
 from bp.builtins import (
     BuiltinSig,
     OBJ_EVENT,
@@ -170,11 +193,16 @@ def make_eline(line: Line, file_name: String, old_line: String) -> ELine:
 
 @fieldwise_init
 struct VarInfo(Copyable, Movable, ImplicitlyCopyable):
-    """Данные переменной: тип + строка регистрации (C# Variable)."""
+    """Данные переменной: тип + строка регистрации (C# Variable).
+
+    skip_init — аналог Variable.Line == null (свойства pr_*): в OtherVarsAddToMain
+    такие переменные init-строку не получают.
+    """
 
     var var_type: Int
     var line_number: Int
     var file_name: String
+    var skip_init: Bool
 
 
 @fieldwise_init
@@ -196,11 +224,18 @@ struct OrderedVars(Copyable, Movable):
             return self.info[key].var_type
         return VT_NON
 
-    def add(mut self, key: String, var_type: Int, line_number: Int, file_name: String):
+    def add(
+        mut self,
+        key: String,
+        var_type: Int,
+        line_number: Int,
+        file_name: String,
+        skip_init: Bool = False,
+    ):
         if key in self.info:
             return
         self.order.append(key)
-        self.info[key] = VarInfo(var_type, line_number, file_name)
+        self.info[key] = VarInfo(var_type, line_number, file_name, skip_init)
 
 
 @fieldwise_init
@@ -218,6 +253,35 @@ struct FunctionInfo(Copyable, Movable):
 
     var name: String
     var params: List[ParamSig]
+
+
+@fieldwise_init
+struct UsedProp(Copyable, Movable, ImplicitlyCopyable):
+    """Использованное свойство модуля: строка первого использования (для 2020)."""
+
+    var line_number: Int
+    var file_name: String
+
+
+@fieldwise_init
+struct UsedProps(Copyable, Movable):
+    """Linker._propertys (448-622): использованные свойства в порядке первого использования."""
+
+    var order: List[String]
+    var info: Dict[String, UsedProp]
+
+    def __init__(out self):
+        self.order = List[String]()
+        self.info = Dict[String, UsedProp]()
+
+    def contains(self, key: String) -> Bool:
+        return key in self.info
+
+    def add(mut self, key: String, number: Int, file_name: String):
+        if key in self.info:
+            return
+        self.order.append(key)
+        self.info[key] = UsedProp(number, file_name)
 
 
 @fieldwise_init
@@ -819,14 +883,30 @@ def expand_equ_math(mut line: ELine):
 # ============================================================================
 
 
-def func_rename(mut lines: List[ELine]):
-    """FuncRename (Linker.cs:324-446) — mangled имена вызовов/заголовков."""
+def func_rename(mut lines: List[ELine], mut methods: List[ELine]):
+    """FuncRename (Linker.cs:324-446) — mangled имена вызовов/заголовков.
+
+    lines = MainText, methods = ModuleMethodsText (Linker.cs:398-445).
+    """
     for k in range(len(lines)):
         ref line = lines[k]
         var t = line.line_type
-        if (
+        if t == LT_MODULEMETHODCALL:
+            var renamed = False
+            for i in range(len(line.words)):
+                var w = line.words[i]
+                if w.token == TOK_MODULEMETHOD:
+                    w.text = (
+                        "m_" + w.text.replace(".", "_") + "_" + String(param_count(line.words))
+                    ).lower()
+                    line.words[i] = w
+                    renamed = True
+            if renamed:
+                line.new_line = ejoin(line.words)
+        elif (
             t == LT_SUBCALL
             or t == LT_SUBINIT
+            or t == LT_FUNCCALL
             or t == LT_METHODCALL
             or t == LT_FUNCINIT
         ):
@@ -843,13 +923,68 @@ def func_rename(mut lines: List[ELine]):
             if renamed:
                 line.new_line = ejoin(line.words)
 
+    # --- методы модулей (Linker.cs:398-445) --------------------------------------
+    for k in range(len(methods)):
+        ref line = methods[k]
+        var t = line.line_type
+        if t == LT_MODULEMETHODCALL:
+            var renamed = False
+            for i in range(len(line.words)):
+                var w = line.words[i]
+                if w.token == TOK_MODULEMETHOD:
+                    w.text = (
+                        "m_" + w.text.replace(".", "_") + "_" + String(param_count(line.words))
+                    ).lower()
+                    line.words[i] = w
+                    renamed = True
+            if renamed:
+                line.new_line = ejoin(line.words)
+        elif t == LT_FUNCINIT:
+            var renamed = False
+            for i in range(len(line.words)):
+                var w = line.words[i]
+                if w.token == TOK_FUNCNAME:
+                    # текст уже `<Module.Name>_<имя>` (переименование до линковки)
+                    w.text = (
+                        "m_" + w.text + "_" + String(param_count(line.words))
+                    ).lower()
+                    line.words[i] = w
+                    renamed = True
+            if renamed:
+                line.new_line = ejoin(line.words)
+        elif t == LT_METHODCALL:
+            var renamed = False
+            for i in range(len(line.words)):
+                var tok = line.words[i].token
+                if tok == TOK_SUBNAME:
+                    var w = line.words[i]
+                    w.text = (
+                        "f_" + w.text + "_" + String(param_count(line.words))
+                    ).lower()
+                    line.words[i] = w
+                    renamed = True
+            if renamed:
+                line.new_line = ejoin(line.words)
 
-def vars_and_labels_rename(mut lines: List[ELine]):
-    """VarsAndLabelsRename (Linker.cs:448-622) — gv_/lv_/gl_/ll_ + счётчики."""
+
+def vars_and_labels_rename(
+    mut lines: List[ELine],
+    mut methods: List[ELine],
+    mut used: UsedProps,
+    mut ctx: Ctx,
+) raises:
+    """VarsAndLabelsRename (Linker.cs:448-622) — gv_/lv_/gl_/ll_/pr_ + счётчики.
+
+    lines = MainText (467-541), methods = ModuleMethodsText (544-621). Счётчики
+    lv_/ll_ и флаг func ОБЩИЕ для обоих проходов; в проходе модулей FUNCINIT
+    инкрементирует только lv-счётчик (квирк cs:549-553), @-глобалы в модулях ->
+    2009, переменные/метки вне методов -> 2008.
+    """
     var lv_n = 0
     var ll_n = 0
     var func = False
 
+    # --- главная программа (Linker.cs:467-541) ---------------------------------
     for k in range(len(lines)):
         ref line = lines[k]
         if line.line_type == LT_FUNCINIT:
@@ -885,6 +1020,59 @@ def vars_and_labels_rename(mut lines: List[ELine]):
                         w.text = ("gv_" + w.text).lower().replace("@", "")
                 if w.token == TOK_LABEL:
                     w.text = w.text.replace(":", "") + ":"
+                line.words[i] = w
+            elif w.token == TOK_MODULEPROPERTY:
+                # Linker.cs:528-537: свойство -> pr_<module>_<prop>, токен VARIABLE
+                var name = w.text.lower().replace(".", "_")
+                used.add(name, line.number, line.file_name)
+                w.token = TOK_VARIABLE
+                w.text = "pr_" + name
+                line.words[i] = w
+        line.new_line = ejoin(line.words)
+
+    # --- методы модулей (Linker.cs:544-621) --------------------------------------
+    for k in range(len(methods)):
+        ref line = methods[k]
+        if line.line_type == LT_FUNCINIT:
+            func = True
+            lv_n += 1  # ll_n НЕ инкрементируется (квирк cs:549-553)
+        elif (
+            line.line_type == LT_ONEKEYWORD
+            and ejoin(line.words).lower().strip() == "endfunction"
+        ):
+            func = False
+            continue
+
+        for i in range(len(line.words)):
+            var w = line.words[i]
+            if w.token == TOK_VARIABLE:
+                if w.text.find("@") != -1:
+                    # Ошибка: в модулях не может быть глобальных переменных (cs:564-569)
+                    ctx.add_error(line, 2009, "")
+                    return
+                if not func:
+                    # Ошибка: вне методов модулей переменных нет (cs:571-576)
+                    ctx.add_error(line, 2008, "")
+                    return
+                w.text = ("lv_" + w.text + "_" + String(lv_n)).lower()
+                line.words[i] = w
+            elif w.token == TOK_LABEL or w.token == TOK_LABELNAME:
+                if w.text.find("@") != -1:
+                    # Квирк: для меток с @ здесь тоже 2008, а не 2010 (cs:584-589)
+                    ctx.add_error(line, 2008, "")
+                    return
+                if not func:
+                    ctx.add_error(line, 2008, "")
+                    return
+                w.text = ("ll_" + w.text + "_" + String(ll_n)).lower()
+                if w.token == TOK_LABEL:
+                    w.text = w.text.replace(":", "") + ":"
+                line.words[i] = w
+            elif w.token == TOK_MODULEPROPERTY:
+                var name = w.text.lower().replace(".", "_")
+                used.add(name, line.number, line.file_name)
+                w.token = TOK_VARIABLE
+                w.text = "pr_" + name
                 line.words[i] = w
         line.new_line = ejoin(line.words)
 
@@ -929,6 +1117,148 @@ def remove_main_sub(lines: List[ELine], mut rest: List[ELine], mut subs: List[EL
             subs.append(line.copy())
         else:
             rest.append(line.copy())
+
+
+def parse_private(
+    pp: Preproc, main_text: List[ELine], mut ctx: Ctx
+) raises:
+    """ParsePrivate (Linker.cs:860-960) — доступ к приватным членам модулей.
+
+    MainText: приватное свойство -> 2017, приватный метод -> 2018 (несуществующий
+    модуль молча пропускается). Тела модулей: обращение к ЧУЖИМ приватным членам
+    -> 2017/2018; к своим — разрешено. Слова свойств/методов СВОЕГО модуля в телах
+    уже переименованы без точек (rename до линковки) -> GetModuleName даёт "" ->
+    молча пропускаются (квирк).
+    """
+    for k in range(len(main_text)):
+        ref line = main_text[k]
+        for i in range(len(line.words)):
+            var w = line.words[i]
+            if w.token == TOK_MODULEPROPERTY:
+                var mod_name = module_name_of(w.text).lower()
+                if not pp.module_exists(mod_name):
+                    continue
+                var key = mod_name + "_" + method_name_of(w.text).lower()
+                if pp.module_has_property(mod_name, key):
+                    var pr = pp.module_property(mod_name, key)
+                    if pr.is_private:
+                        ctx.add_error(line, 2017, w.origin)
+                        return
+            elif w.token == TOK_MODULEMETHOD:
+                var mod_name = module_name_of(w.text).lower()
+                if not pp.module_exists(mod_name):
+                    continue
+                var key = (
+                    method_name_of(w.text).lower()
+                    + "_"
+                    + String(param_count(line.words))
+                )
+                if pp.module_method_exists(mod_name, key):
+                    var mm = pp.module_method(mod_name, key)
+                    if mm.is_private:
+                        ctx.add_error(line, 2018, w.origin)
+                        return
+
+    for m in range(len(pp.mod_keys)):
+        var tmp_name = pp.mod_keys[m]
+        var sp = pp.mod_span[tmp_name]
+        for idx in range(sp[0], sp[0] + sp[1]):
+            var ln = pp.module_line(idx)
+            for wi in range(len(ln.words)):
+                var tok = ln.words[wi].token
+                if tok == TOK_MODULEPROPERTY:
+                    var mod_name = module_name_of(ln.words[wi].text).lower()
+                    if not pp.module_exists(mod_name) or mod_name == tmp_name:
+                        continue
+                    var key = mod_name + "_" + method_name_of(ln.words[wi].text).lower()
+                    if pp.module_has_property(mod_name, key):
+                        var pr = pp.module_property(mod_name, key)
+                        if pr.is_private:
+                            ctx.diags.add(
+                                pp.module_file(tmp_name), ln.line_number, 2017, ln.words[wi].origin_text
+                            )
+                            return
+                elif tok == TOK_MODULEMETHOD:
+                    var mod_name = module_name_of(ln.words[wi].text).lower()
+                    if not pp.module_exists(mod_name) or mod_name == tmp_name:
+                        continue
+                    var key = (
+                        method_name_of(ln.words[wi].text).lower()
+                        + "_"
+                        + String(param_count_linker(ln.words))
+                    )
+                    if pp.module_method_exists(mod_name, key):
+                        var mm = pp.module_method(mod_name, key)
+                        if mm.is_private:
+                            ctx.diags.add(
+                                pp.module_file(tmp_name), ln.line_number, 2018, ln.words[wi].origin_text
+                            )
+                            return
+
+
+def create_calling_property_lines(
+    pp: Preproc, used: UsedProps, mut ctx: Ctx, mut prop_flat: List[FlatItem]
+) raises:
+    """CreateCallingPropertyLines (Linker.cs:788-858) — init-строки pr_* свойств.
+
+    Для каждого использованного свойства ищется объявление в реестрах всех модулей
+    (Linker.cs:793-802); не найдено -> 2020 (855). Строка инициализации получает
+    Number/FileName строки объявления; переменная pr_* регистрируется с
+    Init=true и Line=null (в OtherVarsAddToMain пропускается).
+    """
+    for u in range(len(used.order)):
+        var key = used.order[u]
+        var found = False
+        for m in range(len(pp.mod_keys)):
+            var mk = pp.mod_keys[m]
+            if not pp.module_has_property(mk, key):
+                continue
+            var decl = pp.module_property(mk, key)
+            var decl_line = pp.module_line(decl.decl_idx)
+            var name = "pr_" + decl_line.words[1].text.lower()
+
+            var words = List[EWord]()
+            words.append(
+                EWord(name, decl_line.words[1].origin_text, TOK_VARIABLE)
+            )
+            var lt = LT_VARINIT
+            var vt = VT_NUMBER
+            var w0 = decl_line.words[0].text.lower()
+            if w0 == "number":
+                words.append(EWord("=", "=", TOK_EQU))
+                words.append(EWord("0", "0", TOK_NUMBER))
+            elif w0 == "number[]":
+                lt = LT_VARARRAYINIT
+                vt = VT_NUMBER_ARRAY
+                words.append(EWord("[", "[", TOK_BRACKETLEFTARRAY))
+                words.append(EWord("0", "0", TOK_NUMBER))
+                words.append(EWord("]", "]", TOK_BRACKETRIGHTARRAY))
+                words.append(EWord("=", "=", TOK_EQU))
+                words.append(EWord("0", "0", TOK_NUMBER))
+            elif w0 == "string":
+                vt = VT_STRING
+                words.append(EWord("=", "=", TOK_EQU))
+                words.append(EWord("\"\"", "\"\"", TOK_STRING))
+            elif w0 == "string[]":
+                lt = LT_VARARRAYINIT
+                vt = VT_STRING_ARRAY
+                words.append(EWord("[", "[", TOK_BRACKETLEFTARRAY))
+                words.append(EWord("0", "0", TOK_NUMBER))
+                words.append(EWord("]", "]", TOK_BRACKETRIGHTARRAY))
+                words.append(EWord("=", "=", TOK_EQU))
+                words.append(EWord("\"\"", "\"\"", TOK_STRING))
+
+            var text = ejoin(words)
+            prop_flat.append(
+                FlatItem(words^, lt, decl_line.line_number, text, List[String]())
+            )
+            # Variable("pr_" + key) { Init = true, Line = null } (cs:850-851)
+            ctx.variables.add(name, vt, decl_line.line_number, pp.module_file(mk), True)
+            found = True
+            break
+        if not found:
+            var info = used.info[key]
+            ctx.diags.add(info.file_name, info.line_number, 2020, key)
 
 
 # ============================================================================
@@ -1015,12 +1345,17 @@ def parse_calls_list(mut ctx: Ctx, lines: List[ELine]):
 
 
 def parse_all_calls(
-    mut ctx: Ctx, main: List[ELine], subs: List[ELine], funcs: List[ELine]
+    mut ctx: Ctx,
+    main: List[ELine],
+    subs: List[ELine],
+    funcs: List[ELine],
+    methods: List[ELine],
 ):
-    """ParseAllCalls (Interpreter.cs:654-754): main -> subs -> funcs."""
+    """ParseAllCalls (Interpreter.cs:654-677): main -> subs -> funcs -> методы модулей."""
     parse_calls_list(ctx, main)
     parse_calls_list(ctx, subs)
     parse_calls_list(ctx, funcs)
+    parse_calls_list(ctx, methods)
 
 
 def parse_one_call(mut ctx: Ctx, mut lines: List[ELine]) raises:
@@ -1267,7 +1602,9 @@ def other_vars_add_to_main(mut ctx: Ctx, mut var_init: List[String]) raises:
     for i in range(len(ctx.variables.order)):
         var name = ctx.variables.order[i]
         var info = ctx.variables.info[name]
-        # Свойства pr_* (Line == null в C#) пропускаются; в module-free их нет.
+        # Свойства pr_* (Line == null в C#) пропускаются (Interpreter.cs:613-616).
+        if info.skip_init:
+            continue
         var text = init_line_text(name, info.var_type)
         if text != "":
             var_init.append(text)
@@ -1520,35 +1857,71 @@ def final_var_pass(mut lines: List[FlatItem]):
 # ============================================================================
 
 
-def run_expansion(path: String, mut ctx: Ctx) raises -> List[String]:
+def run_expansion(path: String, outdir: String, mut ctx: Ctx) raises -> List[String]:
     """Полный конвейер: исходник -> строки развёртки (диагностики в ctx.diags)."""
     var raw = read_lines(path)
     var file_name = path
 
     # --- разметка (Program ctor, Program.cs:29-35) ----------------------------
-    var all_lines = List[ELine]()
+    var all_lines = List[Line]()
     for i in range(len(raw)):
         var bl = build_line(raw[i], i + 1)
-        all_lines.append(make_eline(bl, file_name, raw[i]))
+        all_lines.append(bl^)
 
-    # --- FirstFindFiles: folder-директива (Preprocessor.cs:75-79) ----------------
+    # --- FirstFindFiles (Preprocessor.cs:48-81): include/import ----------------
+    # ModuleLibPath = arg2 + separator (Builder.cs:75; пустой arg2 -> "")
+    var lib_path = String("")
+    if outdir != "":
+        lib_path = outdir + "/"
+    var pp = Preproc(dir_name(path) + "/", lib_path)
+    first_find_files(pp, all_lines, file_name)
+    for i in range(len(pp.diags.items)):
+        ctx.diags.items.append(pp.diags.items[i].copy())
+    if ctx.diags.has_errors():
+        return List[String]()
+
+    # --- folder-директива (Preprocessor.cs:71-79) --------------------------------
     for i in range(len(all_lines)):
         if all_lines[i].line_type == LT_FOLDER and len(all_lines[i].words) >= 3:
             # FolderErrorParser.Start на валидном корпусе успешен -> IsFolder = true.
             ctx.is_folder = True
-            ctx.folder_name = all_lines[i].words[1].origin.replace('"', "")
-            ctx.project_name = all_lines[i].words[2].origin.replace('"', "")
+            ctx.folder_name = all_lines[i].words[1].origin_text.replace('"', "")
+            ctx.project_name = all_lines[i].words[2].origin_text.replace('"', "")
 
-    # --- AddIncludesToMain (Linker.cs:283-308): EMPTY/IMPORT/FOLDER выбрасываются
+    # --- AddIncludesToMain (Linker.cs:283-308) ------------------------------------
+    var merged_lines = List[Line]()
+    var merged_olds = List[String]()
+    var merged_files = List[String]()
+    add_includes_to_main(pp, all_lines, raw, file_name, merged_lines, merged_olds, merged_files)
     var maintext = List[ELine]()
-    for i in range(len(all_lines)):
-        var t = all_lines[i].line_type
-        if t != LT_EMPTY and t != LT_IMPORT and t != LT_FOLDER:
-            maintext.append(all_lines[i].copy())
+    for i in range(len(merged_lines)):
+        maintext.append(make_eline(merged_lines[i], merged_files[i], merged_olds[i]))
+
+    # --- ParseModuleMethodsInMain + ParseModuleMethodsInModules (Linker.cs) --------
+    var main_calls = parse_module_methods_in_main(merged_lines)
+    var collected = List[Tuple[String, Int]]()
+    collect_module_methods(pp, main_calls, collected)
+    var methods_text = List[ELine]()
+    for c in range(len(collected)):
+        var mod_key = collected[c][0]
+        var idx = collected[c][1]
+        var mline = pp.module_line(idx)
+        methods_text.append(
+            make_eline(
+                mline,
+                pp.module_file(mod_key),
+                pp.module_old(idx),
+            )
+        )
 
     # --- FuncRename + VarsAndLabelsRename --------------------------------------
-    func_rename(maintext)
-    vars_and_labels_rename(maintext)
+    # ParsePrivate (Linker.cs:860-960) — до сбора вызовов, как в C#
+    parse_private(pp, maintext, ctx)
+    func_rename(maintext, methods_text)
+    var used_props = UsedProps()
+    vars_and_labels_rename(maintext, methods_text, used_props, ctx)
+    if ctx.diags.has_errors():
+        return List[String]()
 
     # --- RemoveMainFunc / RemoveMainSub -----------------------------------------
     var after_funcs = List[ELine]()
@@ -1558,16 +1931,24 @@ def run_expansion(path: String, mut ctx: Ctx) raises -> List[String]:
     var subs = List[ELine]()
     remove_main_sub(after_funcs, main2, subs)
 
-    # --- ParseFuncInitLine: Sub/EndSub + параметры -------------------------------
+    # --- CreateCallingPropertyLines (Linker.cs:788-858) ----------------------------
+    var prop_flat = List[FlatItem]()
+    create_calling_property_lines(pp, used_props, ctx, prop_flat)
+    if ctx.diags.has_errors():
+        return List[String]()
+
+    # --- ParseFuncInitLine: Sub/EndSub + параметры ----------------------------------
     parse_func_init_lines(ctx, funcs)
+    parse_func_init_lines(ctx, methods_text)
 
     # --- ParseAllCalls ------------------------------------------------------------
-    parse_all_calls(ctx, main2, subs, funcs)
+    parse_all_calls(ctx, main2, subs, funcs, methods_text)
 
-    # --- ParseCalls: main -> subs -> funcs ----------------------------------------
+    # --- ParseCalls: main -> subs -> funcs -> методы модулей ------------------------
     parse_one_call(ctx, main2)
     parse_one_call(ctx, subs)
     parse_one_call(ctx, funcs)
+    parse_one_call(ctx, methods_text)
 
     # --- FuncVariablesInit: init-строки временных параметров функций ---------------
     var var_init = List[String]()
@@ -1582,8 +1963,11 @@ def run_expansion(path: String, mut ctx: Ctx) raises -> List[String]:
     process_var_lines(ctx, main2, subs, 0, len(main2))
     other_vars_add_to_main(ctx, var_init)
 
-    # --- CreateProjectOutputLines -----------------------------------------------------
+    # --- CreateProjectOutputLines (Interpreter.cs:345-446) -----------------------------
+    # секции: свойства pr_* -> init переменных -> main -> subs -> funcs -> методы
     var flat = List[FlatItem]()
+    for i in range(len(prop_flat)):
+        flat.append(prop_flat[i].copy())
     for i in range(len(var_init)):
         flat.append(FlatItem(List[EWord](), LT_VARINIT, 0, var_init[i], List[String]()))
     for i in range(len(main2)):
@@ -1592,6 +1976,8 @@ def run_expansion(path: String, mut ctx: Ctx) raises -> List[String]:
         emit_line(flat, subs[i])
     for i in range(len(funcs)):
         emit_line(flat, funcs[i])
+    for i in range(len(methods_text)):
+        emit_line(flat, methods_text[i])
 
     # --- RewriteOutLines -----------------------------------------------------------------
     flat = rewrite_out_lines(flat, ctx.calls_sub, ctx.calls_func)
@@ -1621,10 +2007,10 @@ def run_expansion(path: String, mut ctx: Ctx) raises -> List[String]:
 
 def cmd_expand(path: String, outdir: String) raises -> Int:
     """Команда expand: пишет <каталог исходника>/~<Имя>/~<Имя>.bp."""
-    _ = outdir  # как в C#: влияет только на библиотечные пути Clev3r://
+    # outdir = ModuleLibPath (библиотечные пути Clev3r://), как arg2 в C#
 
     var ctx = Ctx()
-    var texts = run_expansion(path, ctx)
+    var texts = run_expansion(path, outdir, ctx)
 
     if ctx.diags.has_errors():
         print(ctx.diags.render())

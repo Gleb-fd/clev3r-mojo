@@ -1,0 +1,30 @@
+{
+  "$schema": "https://tree-sitter.github.io/tree-sitter/assets/schemas/config.schema.json",
+  "grammars": [
+    {
+      "name": "basic_plus",
+      "scope": "source.basic_plus",
+      "file-types": ["bp", "bpi", "bpm"],
+      "highlights": "queries/highlights.scm",
+      "brackets": "queries/brackets.scm",
+      "indents": "queries/indents.scm",
+      "injection-regex": "^(basic_plus|basic[-_]plus)$"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "Tree-sitter grammar for Clev3r Basic Plus (LEGO EV3 Basic dialect: .bp/.bpi/.bpm)",
+    "authors": [
+      { "name": "clev3r_mojo contributors" }
+    ],
+    "links": {
+      "repository": "https://github.com/clev3r/clev3r_mojo"
+    }
+  },
+  "bindings": {
+    "c": false,
+    "node": false,
+    "swift": false
+  }
+}

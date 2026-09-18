@@ -1,0 +1,38 @@
+{
+  "name": "basic_plus",
+  "version": "0.1.0",
+  "description": "Tree-sitter grammar for Clev3r Basic Plus — the LEGO EV3 Basic dialect (.bp programs, .bpi includes, .bpm modules)",
+  "main": "grammar.js",
+  "keywords": [
+    "tree-sitter",
+    "grammar",
+    "basic-plus",
+    "basic plus",
+    "ev3",
+    "ev3-basic",
+    "clev3r"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "test": "../tools/grammar/check_corpus.sh"
+  },
+  "tree-sitter": [
+    {
+      "scope": "source.basic_plus",
+      "file-types": [
+        "bp",
+        "bpi",
+        "bpm"
+      ],
+      "injection-regex": "^(basic_plus|basic[-_]plus)$",
+      "highlights": "queries/highlights.scm",
+      "brackets": "queries/brackets.scm",
+      "indents": "queries/indents.scm",
+      "outline": "queries/outline.scm"
+    }
+  ]
+}

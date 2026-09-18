@@ -1,0 +1,214 @@
+==================
+goto and labels
+==================
+'PRAGMA NOBOUNDSCHECK
+Main:
+  x = 1
+Skip:
+  goto Main
+---
+(source_file
+  (pragma)
+  (label
+    name: (identifier))
+  (assignment
+    left: (identifier)
+    right: (number))
+  (label
+    name: (identifier))
+  (goto_statement
+    keyword: (kw_goto)
+    name: (identifier)))
+
+==================
+if elseif else with loop keywords
+==================
+If a = 1 And b <> 2 Then
+  Break
+ElseIf c > 0 Then
+  Continue
+Else
+  Return
+EndIf
+---
+(source_file
+  (if_statement
+    keyword: (kw_if)
+    condition: (binary_expression
+      left: (binary_expression
+        left: (identifier)
+        right: (number))
+      operator: (kw_and)
+      right: (binary_expression
+        left: (identifier)
+        right: (number)))
+    then: (kw_then)
+    (break_statement
+      (kw_break))
+    (elseif_clause
+      keyword: (kw_elseif)
+      condition: (binary_expression
+        left: (identifier)
+        right: (number))
+      then: (kw_then)
+      (continue_statement
+        (kw_continue)))
+    (else_clause
+      keyword: (kw_else)
+      (return_statement
+        (kw_return)))
+    end: (kw_endif)))
+
+==================
+for with step and while
+==================
+For i = 0 To 10 Step -1
+  While "True"
+    i++
+  EndWhile
+EndFor
+---
+(source_file
+  (for_statement
+    keyword: (kw_for)
+    variable: (identifier)
+    from: (number)
+    to: (kw_to)
+    to_value: (number)
+    step: (kw_step)
+    step_value: (unary_expression
+      operand: (number))
+    (while_statement
+      keyword: (kw_while)
+      condition: (string)
+      (inc_statement
+        operand: (identifier))
+      end: (kw_endwhile))
+    end: (kw_endfor)))
+
+==================
+function with in and out parameters
+==================
+Function map_data(in number n, out number data)
+  data = Math.Floor(n * 2)
+EndFunction
+
+map_data(2, d1)
+---
+(source_file
+  (function_definition
+    keyword: (kw_function)
+    name: (identifier)
+    parameters: (parameter_list
+      (parameter
+        direction: (kw_in)
+        type: (kw_number)
+        name: (identifier))
+      (parameter
+        direction: (kw_out)
+        type: (kw_number)
+        name: (identifier)))
+    (assignment
+      left: (identifier)
+      right: (method_call
+        object: (builtin_object)
+        method: (identifier)
+        arguments: (argument_list
+          (binary_expression
+            left: (identifier)
+            right: (number)))))
+    end: (kw_endfunction))
+  (call_expression
+    function: (identifier)
+    arguments: (argument_list
+      (number)
+      (identifier))))
+
+==================
+directives
+==================
+folder "prjs" "Test123"
+include "Includes/Include1"
+import "Modules/Module2"
+---
+(source_file
+  (folder_directive
+    keyword: (kw_folder)
+    kind: (folder_kind)
+    name: (string))
+  (include_directive
+    keyword: (kw_include)
+    path: (string))
+  (import_directive
+    keyword: (kw_import)
+    path: (string)))
+
+==================
+assignments and expressions
+==================
+Thread.Run = BLINK
+y[1] += 2
+@g += 1
+z--
+s = -5. * (a + b) / Math.Floor(c)
+msg = "R = " + r
+---
+(source_file
+  (property_assignment
+    object: (builtin_object)
+    property: (identifier)
+    right: (identifier))
+  (augmented_assignment
+    array: (identifier)
+    index: (number)
+    operator: (augmented_operator)
+    right: (number))
+  (augmented_assignment
+    left: (global_variable
+      name: (identifier))
+    operator: (augmented_operator)
+    right: (number))
+  (inc_statement
+    operand: (identifier))
+  (assignment
+    left: (identifier)
+    right: (binary_expression
+      left: (binary_expression
+        left: (unary_expression
+          operand: (number))
+        right: (parenthesized_expression
+          expression: (binary_expression
+            left: (identifier)
+            right: (identifier))))
+      right: (method_call
+        object: (builtin_object)
+        method: (identifier)
+        arguments: (argument_list
+          (identifier)))))
+  (assignment
+    left: (identifier)
+    right: (binary_expression
+      left: (string)
+      right: (identifier))))
+
+==================
+sub definition
+==================
+Sub BLINK
+  LCD.Text(1, 0, 0, 2, "x")
+EndSub
+---
+(source_file
+  (sub_definition
+    keyword: (kw_sub)
+    name: (identifier)
+    (method_call
+      object: (builtin_object)
+      method: (identifier)
+      arguments: (argument_list
+        (number)
+        (number)
+        (number)
+        (number)
+        (string)))
+    end: (kw_endsub)))
