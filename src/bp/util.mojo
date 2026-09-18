@@ -95,9 +95,11 @@ def usage() -> String:
 Использование:
   bp lex <file.bp>              стадии 1-2: канонические строки
   bp expand <file.bp> <outdir>  препроцессор + линковка -> ~<Имя>.bp
-  bp compile <file.bp> <outdir> полный цикл -> .lmsb + .rbf
+  bp compile <file.bp> [outdir] полный цикл -> ~Имя.bp + .lmsb + .rbf
   bp check <file.bp>            диагностики
-  bp flash <file.bp>            компиляция + заливка на кирпич
+  bp flash <file.bp|file.rbf> [device]
+                              компиляция (для .bp) + заливка на кирпич
+                              device: /dev/hidrawN | hidrawN | dry | "" (автовыбор)
   bp lsp                        LSP-сервер (stdio)
 """
     )

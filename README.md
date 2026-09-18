@@ -41,11 +41,11 @@ Program.bp ──Preprocessor──► (include .bpi, module .bpm)
 | Команда | Смысл |
 |---|---|
 | `bp lex <file>` | стадии 1-2: канонические строки (для отладки лексера) |
-| `bp expand <file> <outdir>` | препроцессор + линковка → `~<Имя>.bp` |
-| `bp compile <file> <outdir>` | полный цикл → `.lmsb` + `.rbf` |
-| `bp check <file>` | диагностики (текст/JSON) |
-| `bp flash <file>` | компиляция + заливка на EV3 |
-| `bp lsp` | LSP-сервер (stdio) |
+| `bp expand <file.bp> [outdir]` | препроцессор + линковка → `~<Имя>.bp` (outdir = путь библиотек модулей) |
+| `bp compile <file.bp> [outdir]` | полный цикл → `~<Имя>.bp` + `.lmsb` + `.rbf` |
+| `bp check <file.bp>` | диагностики (текст; код 3000 = маркер стадии lmsb) |
+| `bp flash <file.bp\|file.rbf> [device]` | компиляция (для `.bp`) + заливка на EV3 через `/dev/hidraw` |
+| `bp lsp` | LSP-сервер (stdio): диагностика/hover/completion |
 
 ## Окружение
 
@@ -64,18 +64,25 @@ uv run mojo build src/bp/main.mojo -o tools/bp
 * `docs/03-builtins-and-opcodes.md` — каталог встроенных методов и opcode'ов
 * `docs/04-formats-lmsb-rbf.md` — форматы `.lmsb` и `.rbf` побайтово
 * `docs/05-diagnostics.md` — каталог диагностик для компилятора и LSP
-* `docs/06-hidraw-usb-notes.md` — транспорт USB через hidraw
+* `docs/06-hidraw-usb-notes.md` — транспорт USB через hidraw (`bp flash`)
 
 ## Статус
 
-* [x] Спецификации извлечены из C#: 01 лексер/грамматика, 02 препроцессор/линковка, 03 builtins+опкоды, 04 форматы, 05 диагностики
-* [x] Golden-корпус: 43/44 примера, 46 `.rbf` + 46 `.lmsb` эталонов
+* [x] Спецификации извлечены из C#: 01 лексер/грамматика, 02 препроцессор/линковка, 03 builtins+опкоды, 04 форматы, 05 диагностики, 06 hidraw-заливка
+* [x] Golden-корпус: `tools/difftest.sh` — **expand/lmsb/rbf: 43 pass, 0 fail, 1 skip** (skip = New_Path_Examples — у оракула нет эталона, баг с `..`)
 * [x] Лексер стадий 1-2 — верифицирован против C#-оракула: 0 расхождений (корпус + 146 кейсов + 8000 фаззинг)
-* [x] Развёртка/линковка → `~Name.bp` байт-в-байт: `tools/difftest.sh expand` — 42 pass из 44 (fail = Include/Main — include/import вне задачи; skip = New_Path_Examples — у оракула нет эталона, баг с `..`); квирки break_N/continue_N, порядок init-переменных, медиа-пути — по C# (docs/notes-expansion-questions.md закрыт)
-* [x] Стадия 3 (`.lmsb`, компилятор) — побайтно против C#-оракула: `tools/difftest_lmsb.sh` — 46/46 эталонов `.lmsb` (`tests/golden/**`, вкл. вложенные re-развёртки) + Program1 (5505 Б) байт-в-байт; второй контур — свой `.lmsb` → `bp rbf` → 46/46 эталонных `.rbf`; порт Compiler/Scanner/Expression/FunctionDefinition/LibraryEntry (2 прохода, 31 модуль `c_*.txt` встроен ресурсами, placeholder'ы `:0..:9`/`:#` с авто-дописыванием неиспользованных аргументов, константная свёртка, защитный код деления на 0, AND8888_32-условия, потоковый диспетчер `thread.run`, F.*-механика)
-* [x] Стадия 4 (`.rbf`, ассемблер) — побайтно против C#-оракула: `tools/difftest_rbf.sh` — 46/46 эталонов (`tests/golden/**`) + Program1 (1015 Б) байт-в-байт; квирки: back-patching меток с переменной длиной (отсчёт от конца инструкции), `A:B`-разности, второй байт 2-байтовых мнемоник как константа (`UI_DRAW TEXTBOX` → `84 81 20`), запрещённый padding у IN_/OUT_/IO_, корректно-округлённый разбор float (`3.1415926535897932384`)
-* [ ] LSP-сервер
-* [ ] tree-sitter + расширение Zed
-* [ ] Заливка на кирпич из CLI
+* [x] Развёртка/линковка → `~Name.bp` байт-в-байт, включая include (`.bpi`) и import (`.bpm`): `src/bp/preproc.mojo` + модульная линковка в `expand.mojo`; квирки break_N/continue_N, порядок init-переменных, медиа-пути — по C# (docs/notes-expansion-questions.md закрыт)
+* [x] Стадия 3 (`.lmsb`, компилятор) — побайтно против C#-оракула: 46/46 эталонов `.lmsb` + Program1 (5505 Б) байт-в-байт; второй контур — свой `.lmsb` → `bp rbf` → 46/46 эталонных `.rbf`
+* [x] Стадия 4 (`.rbf`, ассемблер) — побайтно против C#-оракула: 46/46 эталонов + Program1 (1015 Б) байт-в-байт
+* [x] `bp compile` (сцепка expand→lmsb→rbf, паритет с golden) и `bp check` (диагностики expand + стадии 3, код 3000 = маркер lmsb)
+* [x] LSP-сервер (`src/bp/json.mojo` + `src/bp/lsp.mojo`): initialize, didOpen/didChange → publishDiagnostics реальным конвейером (expand + стадия 3), hover по builtin-классам, completion из 30 ключевых слов + 31 класса; smoke-тесты через stdin/stdout — OK
+* [x] tree-sitter грамматика (`grammar/`, 0 ERROR на 50 файлах корпуса) + Zed-расширение (`zed-extension/`: подсветка/скобки/отступы/outline, LSP на `tools/bp lsp`, tasks); установка: Zed → Install Dev Extension → `zed-extension/`
+* [x] Заливка на кирпич из CLI (`bp flash`, `src/bp/flash.mojo`): hidraw-транспорт, кадры BEGIN/CONTINUE_DOWNLOAD + PROGRAM_START 1:1 со старым путём; framing-тесты (`FLASH_TEST OK`) + dry-run; **живой обмен требует проверки на железе** (docs/06 §7)
 
 Полная проверка: `bash tools/verify_all.sh`.
+
+## Известно и отложено
+
+* Модули `.bpm` покрыты оракулом лишь косвенно: единственный модульный кейс (`New_Path_Examples`) — skip без эталона.
+* Заливка нового `Program1.rbf` от Mojo-конвейера на живой кирпич и сравнение поведения — отдельный шаг (нет железа).
+* `zed-extension/extension.toml` пинит грамматику по `rev`: после коммитов обновить хеш.

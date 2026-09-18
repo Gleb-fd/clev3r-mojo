@@ -1,0 +1,23 @@
+[
+  {
+    "label": "bp: build tools/bp",
+    "command": "uv run mojo build src/bp/main.mojo -o tools/bp",
+    "cwd": "/home/ssssq/Projects/clev3r_mojo",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "bp: verify all",
+    "command": "bash tools/verify_all.sh",
+    "cwd": "/home/ssssq/Projects/clev3r_mojo",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "bp: check tree-sitter corpus",
+    "command": "bash tools/grammar/check_corpus.sh",
+    "cwd": "/home/ssssq/Projects/clev3r_mojo/grammar",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  }
+]

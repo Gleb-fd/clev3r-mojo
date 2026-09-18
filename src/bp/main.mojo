@@ -3,13 +3,16 @@
 Команды: lex | expand | compile | check | flash | lmsb | lsp (см. util.usage).
 """
 
-from std.sys import argv
+from std.sys import argv, exit
 from bp.util import read_lines, usage, base_name, dir_name, strip_ext, write_text
 from bp.diag import Diagnostics
 from bp.lexer import build_line, Line, _sub_bytes
 from bp.compiler3 import compile_source_lines
 from bp.expand import cmd_expand
 from bp.asm import assemble_lmsb
+from bp.buildcmd import cmd_compile, cmd_check
+from bp.lsp import cmd_lsp
+from bp.flash import cmd_flash
 
 
 def cmd_lex(path: String) raises -> Int:
@@ -65,9 +68,28 @@ def cmd_rbf(path: String) raises -> Int:
     return 0
 
 
-def cmd_not_implemented(name: String) -> Int:
-    print("bp " + name + ": ещё не реализовано (см. README.md, раздел «Статус»)")
-    return 1
+def cmd_flash_entry(path: String, device: String) raises -> Int:
+    """bp flash: .rbf залить сразу; .bp — сначала compile, затем залить.
+
+    Путь к .rbf после compile: <каталог исходника>/~<Имя>/<Имя>.rbf
+    (раскладка cmd_expand/cmd_compile).
+    """
+    var rbf = path
+    if not path.endswith(".rbf"):
+        var rc = cmd_compile(path, "")
+        if rc != 0:
+            return rc
+        var name = strip_ext(base_name(path))
+        var src_dir = dir_name(path)
+        if src_dir == "":
+            rbf = "~" + name + "/" + name + ".rbf"
+        else:
+            rbf = src_dir + "/~" + name + "/" + name + ".rbf"
+    try:
+        return cmd_flash(rbf, device)
+    except e:
+        print("bp flash: error:", e)
+        return 1
 
 
 def main() raises:
@@ -104,10 +126,39 @@ def main() raises:
             outdir = a[3]
         _ = cmd_expand(a[2], outdir)
         return
-    if cmd == "compile" or cmd == "check" or cmd == "flash":
-        _ = cmd_not_implemented(cmd)
+    if cmd == "compile":
+        if len(a) < 3:
+            print("нужен путь к файлу: bp compile <file.bp> [outdir]")
+            return
+        var outdir = ""
+        if len(a) > 3:
+            outdir = a[3]
+        var rc = cmd_compile(a[2], outdir)
+        if rc != 0:
+            exit(rc)
+        return
+    if cmd == "check":
+        if len(a) < 3:
+            print("нужен путь к файлу: bp check <file.bp>")
+            return
+        var crc = cmd_check(a[2])
+        if crc != 0:
+            exit(crc)
+        return
+    if cmd == "flash":
+        if len(a) < 3:
+            print("нужен путь к файлу: bp flash <file.bp|file.rbf> [device]")
+            return
+        var device = ""
+        if len(a) > 3:
+            device = a[3]
+        var frc = cmd_flash_entry(a[2], device)
+        if frc != 0:
+            exit(frc)
         return
     if cmd == "lsp":
-        _ = cmd_not_implemented(cmd)
+        var lrc = cmd_lsp()
+        if lrc != 0:
+            exit(lrc)
         return
     print(usage())

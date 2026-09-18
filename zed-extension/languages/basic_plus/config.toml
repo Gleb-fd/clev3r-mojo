@@ -1,0 +1,9 @@
+name = "Basic Plus"
+grammar = "basic_plus"
+path_suffixes = ["bp", "bpi", "bpm"]
+line_comments = ["' "]
+tab_size = 2
+brackets = [
+  { start = "(", end = ")", close = true, newline = true },
+  { start = "[", end = "]", close = true, newline = true },
+]
