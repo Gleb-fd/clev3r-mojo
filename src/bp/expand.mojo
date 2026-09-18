@@ -2019,12 +2019,13 @@ def cmd_expand(path: String, outdir: String) raises -> Int:
 
     var name = strip_ext(base_name(path))
     var src_dir = dir_name(path)
+    if src_dir == "":
+        src_dir = "."  # голое имя файла: выводим рядом (Path.Combine("", x) -> x)
     var out_dir = src_dir + "/" + "~" + name
-    if src_dir != "":
-        try:
-            mkdir(src_dir)
-        except:
-            pass
+    try:
+        mkdir(src_dir)
+    except:
+        pass
     try:
         mkdir(out_dir)
     except:

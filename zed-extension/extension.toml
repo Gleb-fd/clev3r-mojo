@@ -2,25 +2,20 @@ id = "basic_plus"
 name = "Basic Plus"
 version = "0.1.0"
 schema_version = 1
-authors = ["clev3r_mojo contributors"]
+authors = ["clev3r-mojo contributors"]
 description = "Basic Plus language support (.bp/.bpi/.bpm): highlighting, brackets, auto-indent, outline, LSP."
-repository = "https://github.com/clev3r/clev3r_mojo"
+repository = "https://github.com/Gleb-fd/clev3r-mojo"
 
-# Tree-sitter grammar. Dev-mode: local checkout of this monorepo, the grammar
-# lives in the `grammar/` subdirectory (Zed `path` key for monorepos).
-# `rev` must be a commit that contains grammar/grammar.js + grammar/src/parser.c,
-# otherwise Zed checks out stale parser sources. Update it after committing
-# grammar changes. For publishing, point `repository` at a standalone grammar
-# repo URL and pin the commit there.
+# Tree-sitter grammar. `rev` must be a commit that contains grammar/grammar.js
+# + grammar/src/parser.c, otherwise Zed checks out stale parser sources.
+# Update it after committing grammar changes.
 [grammars.basic_plus]
-repository = "file:///home/ssssq/Projects/clev3r_mojo"
+repository = "https://github.com/Gleb-fd/clev3r-mojo"
 rev = "76081a635ac2fa0dbb6d0727c043a996a599603d"
 path = "grammar"
 
-# Language server provided by the local `tools/bp lsp` binary (dev path).
-# The actual start command lives in src/lib.rs (`language_server_command`).
-# NOTE: `bp lsp` is currently a stub (prints "not implemented"); the server
-# will fail to start until the LSP is implemented. See README.md.
+# Language server: the extension runs `bp lsp` from the compiler built by
+# install.sh. lib.rs looks for it at a dev path; see src/lib.rs.
 [language_servers.basic-plus]
 name = "Basic Plus LSP"
 languages = ["Basic Plus"]

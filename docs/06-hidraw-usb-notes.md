@@ -74,11 +74,36 @@ stem имени `.rbf`). Происхождение имени каталога 
 ## 6. CLI
 
 ```
-bp flash <file.rbf> [device]  — залить готовый байткод
-bp flash <file.bp>  [device]  — compile (рядом с исходником) + залить
-device: /dev/hidraw2 | hidraw2 | "" (автовыбор первого EV3) | dry
-BP_FLASH_DRY=1 — сухой режим: кадры печатаются hex'ом, устройство не открывается
+bp flash <file.rbf> [target]  — залить готовый байткод
+bp flash <file.bp>  [target]  — compile (рядом с исходником) + залить
+target: "" (usb: автовыбор первого EV3) | usb[:hidrawN|/dev/hidrawN]
+      | bt:AA:BB:CC:DD:EE:FF (или голый MAC) — Bluetooth SPP, RFCOMM-канал 1
+      | wifi:A.B.C.D (или голый IPv4) — Wi-Fi, TCP :5555
+      | /dev/rfcommN — Bluetooth через RFCOMM serial device
+      | dry — кадры печатаются hex'ом, устройство не открывается
+BP_FLASH_DRY=1 — то же, что dry
 ```
+
+### 6.1. Bluetooth и Wi-Fi (EV3ConnectionBluetooth/WiFi.cs)
+
+Оба транспорта используют тот же system/direct-пакет, что USB, но без
+HID-обёртки — кадр `[длина пакета u16 LE][пакет]` в обе стороны.
+
+* **Wi-Fi** (`EV3ConnectionWiFi.cs`): TCP на порт 5555, затем handshake —
+  клиент шлёт дословно `"GET /target?sn=\r\nProtocol:EV3\r\n\r\n"` и ждёт
+  точный ответ `"Accept:EV340\r\n\r\n"`; дальше обычные кадры.
+* **Bluetooth** (`EV3ConnectionBluetooth.cs`): поток SPP. В Linux два пути:
+  RFCOMM-сокет (`bt:MAC`, sockaddr_rc, канал 1, нужен спаренный кирпич) или
+  serial-устройство `/dev/rfcommN` (перед открытием порт переводится в
+  raw-режим ioctl'ами TCGETS/TCSETS — эквивалент cfmakeraw, иначе line
+  discipline портит бинарный поток).
+* Неблокирующие сокеты + poll(POLLOUT/POLLIN) дают таймауты без сигналов;
+  glibc `syscall()` возвращает -1 и кладёт код в errno, поэтому EAGAIN/
+  EINPROGRESS проверяются через `__errno_location`, а не по отрицательному
+  коду (в OLD-коде `rc == -11` никогда не срабатывало бы).
+* Без железа транспорты проверяются заглушками: `tools/fake_ev3.py`
+  (TCP :5555 с handshake) и `tools/fake_ev3_serial.py` (pty, линкуется в
+  `/tmp/rfcomm_fake0`); файл на выходе сверяется байт в байт.
 
 Сухой пример (`Test1.rbf`, 560 Б — всё в одном BEGIN-кадре):
 

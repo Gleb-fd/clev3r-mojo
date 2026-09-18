@@ -9,8 +9,74 @@
 
 * компилятор и анализатор написаны на Mojo (один статический бинарник, без .NET);
 * LSP-сервер даёт диагностику, автодополнение, hover и переходы прямо в Zed;
-* заливка на кирпич идёт из CLI через `/dev/hidraw` (без docker и libusb);
+* заливка на кирпич из CLI: USB (hidraw), Bluetooth (SPP) и Wi-Fi (TCP :5555);
 * tree-sitter грамматика даёт нативную подсветку и outline.
+
+## Установка
+
+Linux (x86-64). Нужны `git`, `python3`, `curl`; Mojo и всё остальное ставится само.
+
+```bash
+git clone https://github.com/Gleb-fd/clev3r-mojo.git
+cd clev3r-mojo
+./install.sh              # соберёт tools/bp и прогонит смоук-тест
+./install.sh --with-zed   # + расширение Basic Plus для Zed (пребилд, rust не нужен)
+```
+
+После `--with-zed` перезапусти Zed: файлы `.bp/.bpi/.bpm` откроются как Basic Plus.
+LSP найдёт компилятор сам, если открыт проект с `tools/bp` внутри или `bp` есть в PATH.
+
+Быстрая проверка без Zed:
+
+```bash
+tools/bp compile tests/corpus/Functions/Functions.bp
+```
+
+Рядом с исходником появится `~Functions/Functions.rbf` — тот самый байткод EV3.
+
+## Быстрый старт: заливка на кирпич
+
+```bash
+tools/bp flash prog.bp                        # USB-кабель (автовыбор hidraw)
+tools/bp flash prog.bp wifi:192.168.1.42      # Wi-Fi (IP виден на экране кирпича)
+tools/bp flash prog.bp bt:00:16:53:XX:XX:XX   # Bluetooth (кирпич должен быть спарен)
+tools/bp flash prog.bp dry                    # напечатать кадры, ничего не отправляя
+```
+
+`.bp` при заливке компилируется сам. Для Wi-Fi включи Wi-Fi в меню кирпича и
+подключи его к той же сети, что и компьютер. Для Bluetooth спарь кирпич
+(`bluetoothctl pair XX:XX:...`) или используй `/dev/rfcommN` после `rfcomm bind`.
+
+В Zed те же действия повешены на хоткеи (см. `.zed/tasks.json` + `~/.config/zed/keymap.json`):
+Ctrl+Alt+F — USB, Ctrl+Alt+W — Wi-Fi, Ctrl+Alt+T — Bluetooth, Ctrl+Alt+M — только компиляция.
+Адреса кирпича задаются в `.zed/tasks.json`.
+
+## Сравнение с оригиналом
+
+Замеры на одном ноутбуке x86-64, файл на 3768 строк (листинг 12 008 строк, байткод 84.7 КБ),
+медиана нескольких прогонов:
+
+| | C# оракул | Mojo |
+|---|---|---|
+| Полный цикл компиляции | 294 мс | 93 мс |
+| Стартовая накладка (пустой вход) | ~102 мс | ~11 мс |
+
+Корректность: компилятор верифицируется против C#-оракула дифференциальными тестами
+(`tools/difftest.sh`): развёртка, листинг и байткод совпадают побайтово на всём корпусе,
+включая сгенерированные стресс-файлы с плотной булевой логикой.
+
+## Платформы
+
+Компилятор (`lex/expand/compile/check/lmsb/rbf/lsp`) — чистая обработка файлов,
+собирается везде, где есть Mojo. Заливка (`bp flash`) пока завязана на Linux:
+сканирование `/sys/class/hidraw`, RFCOMM-сокеты BlueZ, raw-termios, номера
+syscall'ов x86-64.
+
+* **Windows** — компилятор работает в WSL2; заливка по Wi-Fi тоже (сеть общая
+  с Windows), USB-кирпич пробрасывается через `usbipd-win`.
+* **macOS / Windows нативно** — нужен свой транспортный слой вместо hidraw/BlueZ
+  (IOKit/HID, hid.dll, WinSock RFCOMM). Логика команд и кадров в `flash.mojo`
+  отделена от транспорта и переиспользуется как есть.
 
 ## Пайплайн (как в оригинале — и это важно)
 
@@ -44,7 +110,7 @@ Program.bp ──Preprocessor──► (include .bpi, module .bpm)
 | `bp expand <file.bp> [outdir]` | препроцессор + линковка → `~<Имя>.bp` (outdir = путь библиотек модулей) |
 | `bp compile <file.bp> [outdir]` | полный цикл → `~<Имя>.bp` + `.lmsb` + `.rbf` |
 | `bp check <file.bp>` | диагностики (текст; код 3000 = маркер стадии lmsb) |
-| `bp flash <file.bp\|file.rbf> [device]` | компиляция (для `.bp`) + заливка на EV3 через `/dev/hidraw` |
+| `bp flash <file.bp\|file.rbf> [target]` | компиляция (для `.bp`) + заливка: USB `usb[:dev]` (по умолчанию), Bluetooth `bt:MAC`, Wi-Fi `wifi:IP`, `/dev/rfcommN`, `dry` |
 | `bp lsp` | LSP-сервер (stdio): диагностика/hover/completion |
 
 ## Окружение
@@ -64,7 +130,7 @@ uv run mojo build src/bp/main.mojo -o tools/bp
 * `docs/03-builtins-and-opcodes.md` — каталог встроенных методов и opcode'ов
 * `docs/04-formats-lmsb-rbf.md` — форматы `.lmsb` и `.rbf` побайтово
 * `docs/05-diagnostics.md` — каталог диагностик для компилятора и LSP
-* `docs/06-hidraw-usb-notes.md` — транспорт USB через hidraw (`bp flash`)
+* `docs/06-hidraw-usb-notes.md` — транспорты заливки: USB, Bluetooth, Wi-Fi (`bp flash`)
 
 ## Статус
 
@@ -77,7 +143,8 @@ uv run mojo build src/bp/main.mojo -o tools/bp
 * [x] `bp compile` (сцепка expand→lmsb→rbf, паритет с golden) и `bp check` (диагностики expand + стадии 3, код 3000 = маркер lmsb)
 * [x] LSP-сервер (`src/bp/json.mojo` + `src/bp/lsp.mojo`): initialize, didOpen/didChange → publishDiagnostics реальным конвейером (expand + стадия 3), hover по builtin-классам, completion из 30 ключевых слов + 31 класса; smoke-тесты через stdin/stdout — OK
 * [x] tree-sitter грамматика (`grammar/`, 0 ERROR на 50 файлах корпуса) + Zed-расширение (`zed-extension/`: подсветка/скобки/отступы/outline, LSP на `tools/bp lsp`, tasks); установка: Zed → Install Dev Extension → `zed-extension/`
-* [x] Заливка на кирпич из CLI (`bp flash`, `src/bp/flash.mojo`): hidraw-транспорт, кадры BEGIN/CONTINUE_DOWNLOAD + PROGRAM_START 1:1 со старым путём; framing-тесты (`FLASH_TEST OK`) + dry-run; **живой обмен требует проверки на железе** (docs/06 §7)
+* [x] Заливка на кирпич из CLI (`bp flash`, `src/bp/flash.mojo`): три транспорта — USB (hidraw), Bluetooth (RFCOMM-сокет или `/dev/rfcommN` в raw-режиме), Wi-Fi (TCP :5555 с handshake `Accept:EV340`); кадры BEGIN/CONTINUE_DOWNLOAD + PROGRAM_START 1:1 со старым путём; framing-тесты (`FLASH_TEST OK`), dry-run и сквозные тесты на заглушках кирпича (`tools/fake_ev3.py`, `tools/fake_ev3_serial.py`) — файл на кирпиче собирается байт в байт; **живой обмен требует проверки на железе** (docs/06 §7)
+* [x] Установка: `install.sh` (сборка + смоук-тест) и `tools/install_zed_extension.sh` (пребилд расширения Zed без rust)
 
 Полная проверка: `bash tools/verify_all.sh`.
 

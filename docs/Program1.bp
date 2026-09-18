@@ -1,0 +1,35 @@
+folder "prjs" "test123"
+
+d1_min = 31
+d1_max = 68
+d1 = 0
+
+d2_min = 31
+d2_max = 68
+d2 = 0
+
+Function map_data(in number n, out number data)
+    if n = 2 Then
+        data = Math.Floor((Sensor2.Raw1() - @d1_min) / (@d2_max - @d1_min) * 100)
+    EndIf
+
+    if n = 3 Then
+        data = Math.Floor((Sensor3.Raw1() - @d2_min) / (@d2_max - @d2_min) * 100)
+    EndIf
+EndFunction
+
+While "True"
+    LCD.Clear()
+
+    d1 = Sensor2.Raw1()
+    LCD.Text(1, 0, 0, 2, d1)
+    map_data(2, d1)
+    LCD.Text(1, 0, 20, 2, d1)
+
+    d2 = Sensor3.Raw1()
+    LCD.Text(1, 0, 40, 2, d2)
+    map_data(3, d2)
+    LCD.Text(1, 0, 60, 2, d2)
+
+    Program.Delay(100)
+EndWhile

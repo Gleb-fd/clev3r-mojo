@@ -9,3 +9,4 @@ tools/bp
 tools/bp_lmsb
 tools/bp_usb
 *.o
+zed-extension/target/

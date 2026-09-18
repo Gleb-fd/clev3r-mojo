@@ -36,6 +36,8 @@ def cmd_compile(main_path: String, outdir: String) raises -> Int:
 
     var name = strip_ext(base_name(main_path))
     var src_dir = dir_name(main_path)
+    if src_dir == "":
+        src_dir = "."  # голое имя файла: артефакты рядом (Path.Combine("", x) -> x)
     var exp_path = src_dir + "/~" + name + "/~" + name + ".bp"
 
     # --- стадия 3 (зеркало cmd_lmsb из main.mojo) ---

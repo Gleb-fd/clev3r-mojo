@@ -1,16 +1,9 @@
-//! Basic Plus Zed extension: wires the local `tools/bp lsp` binary
-//! as the language server for dev mode.
+//! Basic Plus Zed extension: wires the `bp lsp` binary (built by install.sh)
+//! as the language server, in dev mode.
 //!
-//! NOTE: `tools/bp lsp` is currently a stub (prints "not implemented"),
-//! so the server will fail to start until the LSP is implemented.
-//! Syntax highlighting / indents / outline work without it.
+//! Syntax highlighting / indents / outline work without the language server.
 
 use zed_extension_api as zed;
-
-/// Dev-mode path to the locally built Basic Plus CLI.
-/// Built via: `uv run mojo build src/bp/main.mojo -o tools/bp`
-/// (see tasks.json, task "bp: build tools/bp").
-const DEV_LSP_PATH: &str = "/home/ssssq/Projects/clev3r_mojo/tools/bp";
 
 struct BasicPlusExtension;
 
@@ -22,13 +15,39 @@ impl zed::Extension for BasicPlusExtension {
     fn language_server_command(
         &mut self,
         _language_server_id: &zed::LanguageServerId,
-        _worktree: &zed::Worktree,
+        worktree: &zed::Worktree,
     ) -> zed::Result<zed::Command> {
-        Ok(zed::Command {
-            command: DEV_LSP_PATH.to_string(),
-            args: vec!["lsp".to_string()],
-            env: Default::default(),
-        })
+        // Порядок поиска: tools/bp в корне открытого проекта, bp в PATH,
+        // типичные места установки репозитория.
+        let mut candidates: Vec<String> = vec![format!("{}/tools/bp", worktree.root_path())];
+        if let Some(on_path) = worktree.which("bp") {
+            candidates.push(on_path);
+        }
+        candidates.push("~/clev3r_mojo/tools/bp".to_string());
+        candidates.push("~/Projects/clev3r_mojo/tools/bp".to_string());
+
+        for path in &candidates {
+            let expanded = match path.strip_prefix("~/") {
+                Some(rest) => match std::env::var("HOME") {
+                    Ok(home) => format!("{home}/{rest}"),
+                    Err(_) => path.clone(),
+                },
+                None => path.clone(),
+            };
+            if std::path::Path::new(&expanded).is_file() {
+                return Ok(zed::Command {
+                    command: expanded,
+                    args: vec!["lsp".to_string()],
+                    env: Default::default(),
+                });
+            }
+        }
+
+        Err(
+            "bp не найден: собери компилятор (./install.sh из репозитория \
+             clev3r-mojo) и положи tools/bp в корень проекта или в PATH"
+                .to_string(),
+        )
     }
 }
 

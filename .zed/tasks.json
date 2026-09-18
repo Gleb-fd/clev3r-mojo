@@ -1,0 +1,48 @@
+[
+  // Замени значения на адреса СВОЕГО кирпича — они подставляются в задачи
+  // "bp: flash (Wi-Fi)" и "bp: flash (Bluetooth)".
+  {
+    "label": "bp: build компилятор",
+    "command": "uv run mojo build src/bp/main.mojo -o tools/bp",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "bp: check (текущий файл)",
+    "command": "tools/bp check \"$ZED_FILE\"",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "bp: compile (текущий файл)",
+    "command": "tools/bp compile \"$ZED_FILE\"",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "bp: flash USB (текущий файл)",
+    "command": "tools/bp flash \"$ZED_FILE\"",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "bp: flash Wi-Fi (текущий файл)",
+    "command": "tools/bp flash \"$ZED_FILE\" \"$BP_EV3_WIFI\"",
+    "env": { "BP_EV3_WIFI": "192.168.1.42" },
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "bp: flash Bluetooth (текущий файл)",
+    "command": "tools/bp flash \"$ZED_FILE\" \"$BP_EV3_BT\"",
+    "env": { "BP_EV3_BT": "00:16:53:AA:BB:CC" },
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  }
+]

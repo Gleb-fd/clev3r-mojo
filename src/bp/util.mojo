@@ -97,9 +97,11 @@ def usage() -> String:
   bp expand <file.bp> <outdir>  препроцессор + линковка -> ~<Имя>.bp
   bp compile <file.bp> [outdir] полный цикл -> ~Имя.bp + .lmsb + .rbf
   bp check <file.bp>            диагностики
-  bp flash <file.bp|file.rbf> [device]
+  bp flash <file.bp|file.rbf> [target]
                               компиляция (для .bp) + заливка на кирпич
-                              device: /dev/hidrawN | hidrawN | dry | "" (автовыбор)
+                              target: "" (usb-автовыбор) | usb[:dev] |
+                              bt:AA:BB:CC:DD:EE:FF | wifi:A.B.C.D |
+                              /dev/rfcommN | dry
   bp lsp                        LSP-сервер (stdio)
 """
     )
