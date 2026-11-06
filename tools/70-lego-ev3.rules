@@ -1,0 +1,2 @@
+# LEGO EV3 USB HID (0694:0005). Allow members of input to open its hidraw node.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0694", ATTRS{idProduct}=="0005", MODE="0660", GROUP="input"

@@ -116,23 +116,28 @@ def test_hid_roundtrip() raises:
     check(len(rep) == 1024, "HID-отчёт ровно 1024")
     check(rep[0] == 0, "HID-отчёт: байт 0 = 0")
     check(Int(rep[1]) | (Int(rep[2]) << 8) == len(p), "HID-отчёт: длина пакета")
-    var back = parse_hid_report(rep)
-    expect_bytes(back, p, "HID round-trip")
+    var reply = List[UInt8](length=1024, fill=UInt8(0))
+    reply[0] = UInt8(len(p) & 0xFF)
+    reply[1] = UInt8((len(p) >> 8) & 0xFF)
+    for i in range(len(p)):
+        reply[2 + i] = p[i]
+    var back = parse_hid_report(reply)
+    expect_bytes(back, p, "HID read без report ID")
 
 
 def test_replies() raises:
-    var good = bytes_of([0x34, 0x12, 0x03, 0x00, 0x07, 0xAA])
+    var good = bytes_of([0x34, 0x12, 0x03, 0x92, 0x00, 0x07, 0xAA])
     var reply = check_system_reply(good, 0x1234)
     expect_bytes(reply, bytes_of([0x00, 0x07, 0xAA]), "system-ответ: статус+данные")
     check(check_download_status(reply, "BEGIN_DOWNLOAD") == 7, "handle из ответа")
-    var bad_ctr = bytes_of([0x35, 0x12, 0x03, 0x00, 0x07])
+    var bad_ctr = bytes_of([0x35, 0x12, 0x03, 0x92, 0x00, 0x07])
     var failed = False
     try:
         _ = check_system_reply(bad_ctr, 0x1234)
     except:
         failed = True
     check(failed, "чужой счётчик отклоняется")
-    var bad_type = bytes_of([0x34, 0x12, 0x02, 0x00, 0x07])
+    var bad_type = bytes_of([0x34, 0x12, 0x02, 0x92, 0x00, 0x07])
     failed = False
     try:
         _ = check_system_reply(bad_type, 0x1234)
@@ -185,7 +190,9 @@ def test_paths_and_scan() raises:
         "uevent без HID_ID отбрасывается",
     )
     var devs = list_ev3_devices()
-    check(len(devs) == 0, "на этой машине EV3 нет (найдено 0)")
+    for i in range(len(devs)):
+        check(devs[i].startswith("/dev/hidraw"), "найденный EV3 имеет путь hidraw")
+    print("info: найдено EV3: " + String(len(devs)))
 
 
 def test_read_rbf() raises:

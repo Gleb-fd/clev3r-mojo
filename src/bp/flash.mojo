@@ -82,6 +82,8 @@ comptime EV3_WIFI_PORT = 5555
 
 comptime POLLIN = 1
 comptime POLLOUT = 4
+comptime SOL_SOCKET = 1
+comptime SO_ERROR = 4
 
 # errno-коды; glibc syscall() возвращает -1 и кладёт код в errno (НЕ -errno).
 comptime ERRNO_EINTR = 4
@@ -216,24 +218,20 @@ def build_hid_report(packet: List[UInt8]) raises -> List[UInt8]:
 
 
 def parse_hid_report(raw: List[UInt8]) raises -> List[UInt8]:
-    """EV3ConnectionUSB.ReceivePacket: вырезать пакет из HID-отчёта."""
-    if len(raw) < 3:
+    """hidraw read: [len u16][packet]; номер отчёта ядро не возвращает."""
+    if len(raw) < 2:
         raise Error("flash: короткий HID-отчёт")
-    var size = Int(raw[1]) | (Int(raw[2]) << 8)
-    if size <= 0 or size > len(raw) - 3:
+    var size = Int(raw[0]) | (Int(raw[1]) << 8)
+    if size <= 0 or size > len(raw) - 2:
         raise Error("flash: плохая длина в HID-отчёте")
     var out = List[UInt8]()
     for i in range(size):
-        out.append(raw[3 + i])
+        out.append(raw[2 + i])
     return out^
 
 
 def check_system_reply(packet: List[UInt8], counter: Int) raises -> List[UInt8]:
-    """Проверка ответа на system-команду; возвращает [статус][данные...].
-
-    EV3Connection.SystemCommand: длина >= 3, счётчик совпадает, тип 0x03/0x05,
-    длина >= 5; дальше ответ идёт с позиции 3: [статус][данные...].
-    """
+    """Ответ: [counter u16][type][cmd][status][data...]."""
     if len(packet) < 3:
         raise Error("flash: ответ без счётчика")
     var ctr = Int(packet[0]) | (Int(packet[1]) << 8)
@@ -245,7 +243,7 @@ def check_system_reply(packet: List[UInt8], counter: Int) raises -> List[UInt8]:
     if len(packet) < 5:
         raise Error("flash: оборванный ответ")
     var out = List[UInt8]()
-    for i in range(3, len(packet)):
+    for i in range(4, len(packet)):
         out.append(packet[i])
     return out^
 
@@ -466,7 +464,10 @@ def c_open(path: String, flags: Int) raises -> Int:
         external_call["syscall", Int](SYS_NR_OPENAT, AT_FDCWD, cstr.unsafe_ptr(), flags)
     )
     if fd < 0:
-        raise Error("flash: не открыть " + path)
+        var err = c_errno()
+        if err == 13 and path.startswith("/dev/hidraw"):
+            raise Error("flash: нет прав на " + path + " (EACCES; установи правило udev из tools/70-lego-ev3.rules)")
+        raise Error("flash: не открыть " + path + " (errno=" + String(err) + ")")
     return fd
 
 
@@ -711,25 +712,31 @@ def poll_one(fd: Int, events: Int, timeout_ms: Int) -> Int:
 def stream_connect(fd: Int, addr: List[UInt8], timeout_ms: Int) raises:
     """Подключиться сокетом (неблокирующим) с дедлайном.
 
-    Первый connect даёт EINPROGRESS (или сразу 0 на loopback); дальше ждём
-    POLLOUT и дожимаем повторным connect: 0/EISCONN — успех, EALREADY — ещё
-    соединяется, остальное — отказ.
+    После POLLOUT результат connect хранится в SO_ERROR. Повторный connect
+    может вернуть EALREADY и скрыть причину отказа.
     """
-    var attempts = 0
-    while True:
-        var rc = sc(42, fd, addr.unsafe_ptr(), len(addr))
-        if rc == 0:
-            return
-        var err = c_errno()
-        if err == ERRNO_EISCONN:
-            return
-        if err != ERRNO_EINPROGRESS and err != ERRNO_EALREADY:
-            raise Error("flash: не подключиться (errno=" + String(err) + ")")
-        attempts += 1
-        if attempts > 50:
-            raise Error("flash: кирпич не отвечает (таймаут подключения)")
-        if poll_one(fd, POLLOUT, timeout_ms) <= 0:
-            raise Error("flash: кирпич не отвечает (таймаут подключения)")
+    var rc = sc(42, fd, addr.unsafe_ptr(), len(addr))
+    if rc == 0:
+        return
+    var err = c_errno()
+    if err != ERRNO_EINPROGRESS and err != ERRNO_EALREADY:
+        raise Error("flash: не подключиться (errno=" + String(err) + ")")
+    var ready = poll_one(fd, POLLOUT, timeout_ms)
+    if ready == 0:
+        raise Error("flash: кирпич не отвечает (таймаут подключения)")
+    if ready < 0:
+        raise Error("flash: ошибка ожидания подключения (errno=" + String(c_errno()) + ")")
+    var so_error = List[UInt8](length=4, fill=UInt8(0))
+    var optlen = List[UInt8](length=4, fill=UInt8(0))
+    optlen[0] = UInt8(4)
+    rc = Int(external_call["getsockopt", Int](
+        fd, SOL_SOCKET, SO_ERROR, so_error.unsafe_ptr(), optlen.unsafe_ptr()
+    ))
+    if rc < 0:
+        raise Error("flash: не проверить подключение (errno=" + String(c_errno()) + ")")
+    err = Int(so_error[0]) | (Int(so_error[1]) << 8) | (Int(so_error[2]) << 16) | (Int(so_error[3]) << 24)
+    if err != 0:
+        raise Error("flash: не подключиться (errno=" + String(err) + ")")
 
 def str_bytes(s: String) -> List[UInt8]:
     """Байты строки (UTF-8) без NUL."""

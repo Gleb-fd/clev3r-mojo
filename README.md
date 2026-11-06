@@ -46,6 +46,16 @@ tools/bp flash prog.bp dry                    # напечатать кадры,
 `.bp` при заливке компилируется сам. Для Wi-Fi включи Wi-Fi в меню кирпича и
 подключи его к той же сети, что и компьютер. Для Bluetooth спарь кирпич
 (`bluetoothctl pair XX:XX:...`) или используй `/dev/rfcommN` после `rfcomm bind`.
+Если USB-кирпич виден как `/dev/hidrawN`, но получаешь «нет прав», установи
+правило для VID:PID EV3 и обнови устройство:
+
+```bash
+sudo install -m 0644 tools/70-lego-ev3.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules
+sudo udevadm trigger --subsystem-match=hidraw
+```
+
+Текущий пользователь должен состоять в группе `input` (проверка: `id -nG`).
 
 В Zed те же действия повешены на хоткеи (см. `.zed/tasks.json` + `~/.config/zed/keymap.json`):
 Ctrl+Alt+F — USB, Ctrl+Alt+W — Wi-Fi, Ctrl+Alt+T — Bluetooth, Ctrl+Alt+M — только компиляция.
