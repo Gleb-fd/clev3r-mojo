@@ -1,0 +1,233 @@
+folder "prjs" "senior1_full"
+include "lib"
+
+motion_status = 0
+Setup(1, 0)
+Calibrate(calibrated)
+
+Program.Delay(1500)
+If calibrated <> 1 Then
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "cal err")
+  Speaker.Tone(40, 300, 500)
+  Program.Delay(500)
+  LCD.Update()
+Else
+  RunAll(failed)
+  Motor.Stop("BC", "true")
+  LCD.Clear()
+  If failed = 0 Then
+    LCD.Text(1, 0, 0, 2, "ALL 35")
+    LCD.Text(1, 0, 25, 2, "DONE")
+  Else
+    LCD.Text(1, 0, 0, 2, "FAIL")
+    LCD.Text(1, 0, 25, 1, "cell:")
+    LCD.Text(1, 70, 25, 1, failed)
+    LCD.Text(1, 0, 45, 1, "status:")
+    LCD.Text(1, 70, 45, 1, @motion_status)
+  EndIf
+  LCD.Update()
+  Speaker.Tone(50, 660, 400)
+EndIf
+
+Function RunAll(out number failed)
+  failed = 0
+  @run_speed = 40
+  @turn_speed = 30
+  @turn_90 = 300
+  @turn_180 = 600
+  @spin_180 = 520
+  @turn_approach = 180
+  @hop_limit = 1400
+  @entry_deg = 2600
+  @exit_deg = 1400
+  @box_out = 300
+  @read_max_deg = 3000
+  @read_speed = 13
+  @stripe_min = 35
+  @mirror = 1
+  @gx = 7
+  @gy = 5
+  @sx = 1
+  @sy = 3
+  @hx = 1
+  @hy = 0
+  InitRoadWeights()
+
+  total = 0
+  For cx = 1 To @gx
+    For cy = 1 To @gy
+      total = total + 1
+      tx = cx
+      ty = cy
+
+      LCD.Clear()
+      LCD.Text(1, 0, 0, 2, "RUN")
+      LCD.Text(1, 0, 25, 1, "n:")
+      LCD.Text(1, 30, 25, 1, total)
+      LCD.Text(1, 0, 45, 1, "cell:")
+      LCD.Text(1, 60, 45, 1, tx)
+      LCD.Text(1, 90, 45, 1, ty)
+      LCD.Update()
+
+      @hx = 1
+      @hy = 0
+      MoveForward(@box_out, 15)
+      If @motion_status <> 1 Then
+        failed = total
+        FailStop(total)
+        Return
+      EndIf
+      PD_xn(@entry_deg, 25, 1)
+      If @motion_status <> 1 Then
+        failed = total
+        FailStop(total)
+        Return
+      EndIf
+
+      For i = 0 To 34
+        dist[i] = 99999
+        done[i] = 0
+        prev[i] = 0 - 1
+      EndFor
+      s0 = (@sx - 1) * @gy + (@sy - 1)
+      t0 = (tx - 1) * @gy + (ty - 1)
+      dist[s0] = 0
+      For itr = 1 To 35
+        best = 0 - 1
+        bestd = 99999
+        For i = 0 To 34
+          If done[i] = 0 And dist[i] < bestd Then
+            bestd = dist[i]
+            best = i
+          EndIf
+        EndFor
+        If best >= 0 Then
+          done[best] = 1
+          bx = Math.Floor(best / @gy) + 1
+          by = best - (bx - 1) * @gy + 1
+          For d = 1 To 4
+            If d = 1 Then
+              nx = bx + 1
+              ny = by
+            EndIf
+            If d = 2 Then
+              nx = bx - 1
+              ny = by
+            EndIf
+            If d = 3 Then
+              nx = bx
+              ny = by + 1
+            EndIf
+            If d = 4 Then
+              nx = bx
+              ny = by - 1
+            EndIf
+            If nx >= 1 And nx <= @gx And ny >= 1 And ny <= @gy Then
+              nid = (nx - 1) * @gy + (ny - 1)
+              If done[nid] = 0 Then
+                RoadWeight(bx, by, nx, ny, w)
+                alt = dist[best] + w
+                If alt < dist[nid] Then
+                  dist[nid] = alt
+                  prev[nid] = best
+                EndIf
+              EndIf
+            EndIf
+          EndFor
+        EndIf
+      EndFor
+
+      at = t0
+      pln = 0
+      While at <> 0 - 1 And pln < 35
+        px = Math.Floor(at / @gy) + 1
+        py = at - (px - 1) * @gy + 1
+        pln = pln + 1
+        rpx[pln] = px
+        rpy[pln] = py
+        at = prev[at]
+      EndWhile
+      For i = 1 To pln
+        fpx[i] = rpx[pln - i + 1]
+        fpy[i] = rpy[pln - i + 1]
+      EndFor
+      If fpx[1] <> @sx Or fpy[1] <> @sy Then
+        failed = total
+        FailStop(total)
+        Return
+      EndIf
+
+      DrivePath(fpx, fpy, pln, ok)
+      If ok <> 1 Then
+        failed = total
+        FailStop(total)
+        Return
+      EndIf
+
+      Program.Delay(2200)
+      Speaker.Tone(50, 440, 500)
+
+      DrivePath(rpx, rpy, pln, ok)
+      If ok <> 1 Then
+        failed = total
+        FailStop(total)
+        Return
+      EndIf
+
+      FaceDirection(0 - 1, 0, ok)
+      If ok <> 1 Then
+        failed = total
+        FailStop(total)
+        Return
+      EndIf
+      PD_enc(@exit_deg, 25)
+      If @motion_status <> 1 Then
+        failed = total
+        FailStop(total)
+        Return
+      EndIf
+
+      SpinDeg(@spin_180, @turn_speed)
+      If @motion_status <> 1 Then
+        failed = total
+        FailStop(total)
+        Return
+      EndIf
+    EndFor
+  EndFor
+EndFunction
+
+Function SpinDeg(in number deg, in number speed)
+  @motion_status = 4
+  If deg < 1 Or speed = 0 Then
+    Motor.Stop("BC", "true")
+    Return
+  EndIf
+  speed = Math.Abs(speed)
+  Clamp(speed, 10, 80, speed)
+  Motor.ResetCount("BC")
+  MotorB.SetSpeed(speed)
+  MotorC.SetSpeed(0 - speed)
+  MotorBC.Start()
+  turned = 0
+  start_time = EV3.Time
+  timeout = deg * 300 / speed + 5000
+  @motion_status = 3
+  While turned < deg And EV3.Time - start_time < timeout
+    If deg > 150 And turned > deg - 120 Then
+      MotorB.SetSpeed(8)
+      MotorC.SetSpeed(0 - 8)
+    EndIf
+    Program.Delay(10)
+    turned = Math.Max(Math.Abs(Motor.GetCount("B")), Math.Abs(Motor.GetCount("C")))
+  EndWhile
+  Motor.Stop("BC", "true")
+  If turned >= deg Then
+    @motion_status = 1
+  EndIf
+EndFunction
+
+include "s1weights"
+include "s1bar"
+include "s1nav"

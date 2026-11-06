@@ -1,0 +1,119 @@
+folder "prjs" "senior3"
+include "../lesson1/lib"
+include "s3params"
+include "s3map"
+include "s3code"
+include "s3drive"
+include "s3loc"
+include "s3cubes"
+
+motion_status = 0
+Setup(1, 0)
+S3Params()
+InitMap()
+DriveInit()
+LocInit()
+CodeInit()
+Calibrate(calibrated)
+If calibrated <> 1 Then
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "cal err")
+  Speaker.Tone(40, 300, 500)
+  LCD.Update()
+  Program.Delay(3000)
+Else
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "START")
+  LCD.Text(1, 0, 30, 1, "On any straight")
+  LCD.Text(1, 0, 45, 1, "line, along it")
+  LCD.Text(1, 0, 65, 1, "Press to run")
+  LCD.Update()
+  Buttons.Flush()
+  Buttons.Wait()
+  RunMission(failed)
+  Motor.Stop("BC", "true")
+  LCD.Clear()
+  If failed = 0 Then
+    LCD.Text(1, 0, 0, 2, "FINISH")
+  Else
+    LCD.Text(1, 0, 0, 2, "FAIL")
+    LCD.Text(1, 0, 25, 1, "stage:")
+    LCD.Text(1, 70, 25, 1, failed)
+  EndIf
+  ShowState(45)
+  LCD.Update()
+  Buttons.Flush()
+  Buttons.Wait()
+EndIf
+
+' stage: 1 локализация, 2 путь к финишу через зону кода, 3 элементы,
+' 4 возврат к финишу, 5 въезд в зону финиша
+Function RunMission(out number failed)
+  failed = 0
+  Localize(ok)
+  If ok <> 1 Then
+    failed = 1
+    Return
+  EndIf
+  Speaker.Tone(50, 880, 150)
+
+  ' код читается по пути X1 -> финиш; с финиша сначала отъезжаем
+  If @code_enabled = 1 And @cur_node = @finish_node Then
+    DoAction(3, ok, lost)
+    If ok <> 1 Then
+      failed = 2
+      Return
+    EndIf
+    If lost = 1 Then
+      LocLoop(ok)
+      If ok <> 1 Then
+        failed = 2
+        Return
+      EndIf
+    EndIf
+  EndIf
+  DriveTo(@finish_node, ok)
+  If ok <> 1 Then
+    failed = 2
+    Return
+  EndIf
+
+  If @code_ok = 1 Then
+    MoveElements(ok)
+    If ok <> 1 Then
+      failed = 3
+      Return
+    EndIf
+    DriveTo(@finish_node, ok)
+    If ok <> 1 Then
+      failed = 4
+      Return
+    EndIf
+  EndIf
+
+  ' стоим датчиками за чертой финиша лицом в серую зону
+  MoveForward((@finish_mm - @cur_c) * @deg_per_mm, @turn_speed)
+  If @motion_status <> 1 Then
+    failed = 5
+    Return
+  EndIf
+  Motor.Stop("BC", "true")
+  Speaker.Tone(50, 660, 400)
+EndFunction
+
+Function ShowState(in number y)
+  NodeName(@cur_node, node_name)
+  PortName(@cur_q, port_name)
+  LCD.Text(1, 0, y, 1, "node:")
+  LCD.Text(1, 60, y, 1, node_name)
+  LCD.Text(1, 100, y, 1, port_name)
+  LCD.Text(1, 0, y + 15, 1, "fail/mot:")
+  LCD.Text(1, 90, y + 15, 1, @loc_fail)
+  LCD.Text(1, 120, y + 15, 1, @motion_status)
+  LCD.Text(1, 0, y + 30, 1, "hyp/legs:")
+  LCD.Text(1, 90, y + 30, 1, @hc)
+  LCD.Text(1, 120, y + 30, 1, @loc_legs)
+  LCD.Text(1, 0, y + 45, 1, "len/turn:")
+  LCD.Text(1, 90, y + 45, 1, Math.Round(@obs_len))
+  LCD.Text(1, 140, y + 45, 1, Math.Round(@obs_turn))
+EndFunction

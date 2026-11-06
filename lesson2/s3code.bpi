@@ -1,0 +1,71 @@
+' чтение кода — заготовка под модуль. Датчик цвета: порт 1, слева.
+'
+' Код читается на участке X1 -> финиш: робот едет на запад, ячейки кода
+' слева от линии. DriveTo вызывает CodeBegin перед участком, CodeSample(mm)
+' на каждом такте FollowLeg (mm — путь от начала FollowLeg) и CodeEnd после.
+' Модуль включается @code_enabled = 1.
+'
+' Что должен оставить модуль: @code_digit[0..7] — разряды по порядку
+' ячеек от финиша (0 красный, 1 жёлтый, 2 зелёный; серые разделители
+' пропущены), затем CodeEnd вызывает DecodeCode. Итог: @code_ok = 1,
+' @start_mask и @goal_mask — бит 0 = зона 1 ... бит 5 = зона 6.
+' Ячейка у финиша — младший разряд каждой половины кода.
+
+Function CodeInit()
+  @code_enabled = 0
+  @code_ok = 0
+  @start_mask = 0
+  @goal_mask = 0
+  For i = 0 To 7
+    @code_digit[i] = 0 - 1
+  EndFor
+EndFunction
+
+Function CodeBegin()
+  @code_ok = 0
+EndFunction
+
+Function CodeSample(in number mm)
+  ' модуль чтения: замер датчика 1 по пути mm
+  @code_last_mm = mm
+EndFunction
+
+Function CodeEnd()
+  DecodeCode()
+EndFunction
+
+' Четыре троичных разряда, младший первый -> маска зон. Маска годна, если
+' она меньше 64 и в ней ровно три единицы (три элемента).
+Function TernaryMask(in number first, out number mask)
+  mask = 0 - 1
+  value = 0
+  power = 1
+  For i = 0 To 3
+    d = @code_digit[first + i]
+    If d < 0 Or d > 2 Then
+      Return
+    EndIf
+    value = value + d * power
+    power = power * 3
+  EndFor
+  bits = 0
+  rest = value
+  For i = 0 To 6
+    bits = bits + Math.Remainder(rest, 2)
+    rest = Math.Floor(rest / 2)
+  EndFor
+  If value < 64 And bits = 3 Then
+    mask = value
+  EndIf
+EndFunction
+
+Function DecodeCode()
+  @code_ok = 0
+  TernaryMask(0, start_mask)
+  TernaryMask(4, goal_mask)
+  @start_mask = start_mask
+  @goal_mask = goal_mask
+  If start_mask >= 0 And goal_mask >= 0 Then
+    @code_ok = 1
+  EndIf
+EndFunction

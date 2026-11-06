@@ -1,0 +1,108 @@
+' nav
+
+Function DrivePath(in number[] px, in number[] py, in number n, out number ok)
+  ok = 1
+  For k = 2 To n
+    dx = px[k] - px[k - 1]
+    dy = py[k] - py[k - 1]
+    FaceDirection(dx, dy, fok)
+    If fok <> 1 Then
+      ok = 0
+      Return
+    EndIf
+    @hx = dx
+    @hy = dy
+    PD_xn(@hop_limit, @run_speed, 1)
+    If @motion_status <> 1 Then
+      ok = 0
+      Return
+    EndIf
+  EndFor
+EndFunction
+
+Function FaceDirection(in number dx, in number dy, out number ok)
+  ok = 1
+  If dx <> @hx Or dy <> @hy Then
+    lx = @hy * @mirror
+    ly = (0 - @hx) * @mirror
+    If dx = lx And dy = ly Then
+      TurnToLine(1, @turn_approach, @turn_speed, @turn_90)
+    Else
+      rx = 0 - lx
+      ry = 0 - ly
+      If dx = rx And dy = ry Then
+        TurnToLine(2, @turn_approach, @turn_speed, @turn_90)
+      Else
+        UTurn(@turn_speed, @turn_180)
+      EndIf
+    EndIf
+    If @motion_status <> 1 Then
+      ok = 0
+      Return
+    EndIf
+    @hx = dx
+    @hy = dy
+  EndIf
+EndFunction
+
+Function UTurn(in number speed, in number max_turn)
+  @uturn_degrees = 0
+  @uturn_light = 0 - 1
+  @motion_status = 4
+  If max_turn < 1 Or speed = 0 Then
+    Motor.Stop("BC", "true")
+    Return
+  EndIf
+  If @calibrated <> 1 Then
+    @motion_status = 5
+    Motor.Stop("BC", "true")
+    Return
+  EndIf
+  speed = Math.Abs(speed)
+  Clamp(speed, 10, 100, speed)
+  Motor.ResetCount("BC")
+  MotorB.SetSpeed(speed)
+  MotorC.SetSpeed(0 - speed)
+  MotorBC.Start()
+  late = max_turn * 7 / 10
+  black_samples = 0
+  turned = 0
+  start_time = EV3.Time
+  timeout = max_turn * 300 / speed + 5000
+  @motion_status = 3
+  While turned < max_turn And EV3.Time - start_time < timeout
+    map_data(3, value)
+    @uturn_light = value
+    If turned > late And value <= 25 Then
+      black_samples = black_samples + 1
+    Else
+      black_samples = 0
+    EndIf
+    If black_samples >= 3 Then
+      @motion_status = 1
+      Break
+    EndIf
+    Program.Delay(10)
+    turned = Math.Max(Math.Abs(Motor.GetCount("B")), Math.Abs(Motor.GetCount("C")))
+  EndWhile
+  Motor.Stop("BC", "true")
+  @uturn_degrees = turned
+  If turned >= max_turn Then
+    @motion_status = 2
+  EndIf
+EndFunction
+
+Function FailStop(in number stage)
+  Motor.Stop("BC", "true")
+  Speaker.Tone(30, 200, 250)
+  Program.Delay(350)
+  Speaker.Tone(30, 200, 250)
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "STOP")
+  LCD.Text(1, 0, 25, 1, "stage:")
+  LCD.Text(1, 70, 25, 1, stage)
+  LCD.Text(1, 0, 45, 1, "status:")
+  LCD.Text(1, 70, 45, 1, @motion_status)
+  LCD.Update()
+  Program.Delay(4000)
+EndFunction

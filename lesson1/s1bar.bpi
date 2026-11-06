@@ -1,0 +1,146 @@
+' Полосы одной ширины. Соседние одинаковые биты не имеют границы цвета.
+' Первые чёрная и белая полосы задают шаг по энкодерам; далее читаем центры.
+
+Function ReadBarcode(out number code)
+  Motor.Stop("BC", "true")
+  code = 0 - 1
+  @barcode_travel = 0
+  @barcode_reason = 8
+  @barcode_black_width = 0
+  @barcode_white_width = 0
+  GuardMove(@read_max_deg, @read_speed, ok, speed)
+  If ok <> 1 Then
+    Return
+  EndIf
+  If @calibrated <> 1 Then
+    @barcode_reason = 9
+    @motion_status = 5
+    Return
+  EndIf
+  If @stripe_min < 1 Then
+    @motion_status = 4
+    Return
+  EndIf
+
+  Motor.ResetCount("BC")
+  MotorB.SetSpeed(speed)
+  MotorC.SetSpeed(speed)
+  MotorBC.Start()
+  ' Зелёный старт может выглядеть чёрным. Сначала обязательно увидеть белое.
+  state = 0 - 1
+  black = 0
+  start = 0
+  black_width = 0
+  pitch = 0
+  bit = 0
+  value = 0
+  power = 1
+  header_checked = 0
+  traveled = 0
+  start_time = EV3.Time
+  timeout = @read_max_deg * 300 / speed + 5000
+  @motion_status = 3
+  @barcode_reason = 7
+  While traveled < @read_max_deg And EV3.Time - start_time < timeout
+    map_data(2, light)
+    If light <= 25 Then
+      black = 1
+    EndIf
+    If light >= 35 Then
+      black = 0
+    EndIf
+
+    If state = 0 - 1 And light >= 35 Then
+      state = 0
+    EndIf
+    If state = 0 And black = 1 Then
+      start = traveled
+      state = 1
+    EndIf
+    If state = 1 And black = 0 Then
+      black_width = traveled - start
+      @barcode_black_width = black_width
+      If black_width < @stripe_min Then
+        @barcode_reason = 1
+        @motion_status = 2
+        Break
+      EndIf
+      white_start = traveled
+      state = 2
+    EndIf
+    If state = 2 And black = 1 Then
+      white_width = traveled - white_start
+      @barcode_white_width = white_width
+      If white_width < @stripe_min Or Math.Abs(white_width - black_width) > black_width * 0.3 Then
+        @barcode_reason = 2
+        @motion_status = 2
+        Break
+      EndIf
+      pitch = (black_width + white_width) / 2
+      state = 3
+    EndIf
+
+    If state = 3 Then
+      If header_checked = 0 And traveled >= start + 2.5 * pitch Then
+        If black <> 1 Or traveled > start + 2.85 * pitch Then
+          @barcode_reason = 3
+          @motion_status = 2
+          Break
+        EndIf
+        header_checked = 1
+      EndIf
+      If bit < 7 And traveled >= start + (3.5 + bit) * pitch Then
+        If traveled > start + (3.85 + bit) * pitch Then
+          @barcode_reason = 4
+          @motion_status = 2
+          Break
+        EndIf
+        value = value + black * power
+        power = power * 2
+        bit = bit + 1
+      EndIf
+      ' Доезжаем до конца последней ячейки, даже если она белая.
+      If bit = 7 And traveled >= start + 10 * pitch Then
+        DecodeBarcode(value, code)
+        @barcode_reason = 5
+        @motion_status = 2
+        If code >= 0 Then
+          @barcode_reason = 0
+          @motion_status = 1
+        EndIf
+        Break
+      EndIf
+    EndIf
+    Program.Delay(5)
+    traveled = (Math.Abs(Motor.GetCount("B")) + Math.Abs(Motor.GetCount("C"))) / 2
+  EndWhile
+  Motor.Stop("BC", "true")
+  @barcode_travel = traveled
+  If traveled >= @read_max_deg Then
+    @barcode_reason = 6
+    @motion_status = 2
+  EndIf
+EndFunction
+
+' err: 1 короткая чёрная, 2 ширины не совпали, 3 третья полоса не чёрная,
+' 4 пропущен центр бита, 5 координата, 6 пробег, 7 таймаут, 8 параметры, 9 калибровка.
+Function ShowBarcodeDetails()
+  LCD.Text(1, 0, 65, 1, "bar err:")
+  LCD.Text(1, 85, 65, 1, @barcode_reason)
+  LCD.Text(1, 0, 80, 1, "B deg:")
+  LCD.Text(1, 85, 80, 1, @barcode_black_width)
+  LCD.Text(1, 0, 95, 1, "W deg:")
+  LCD.Text(1, 85, 95, 1, @barcode_white_width)
+EndFunction
+
+Function DecodeBarcode(in number value, out number code)
+  code = 0 - 1
+  If value < 0 Or value > 127 Or value <> Math.Floor(value) Then
+    Return
+  EndIf
+  x = Math.Floor(value / 10)
+  y = value - x * 10
+  If x >= 1 And x <= @gx And y >= 1 And y <= @gy Then
+    code = value
+  EndIf
+EndFunction

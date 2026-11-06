@@ -1,0 +1,65 @@
+folder "prjs" "loc_test"
+include "../lesson1/lib"
+include "s3params"
+include "s3map"
+include "s3code"
+include "s3drive"
+include "s3loc"
+
+' только локализация: робот ставится на любой прямой участок вдоль линии,
+' едет, пока не поймёт, где он, и показывает узел и порт въезда.
+motion_status = 0
+Setup(1, 0)
+S3Params()
+InitMap()
+DriveInit()
+LocInit()
+CodeInit()
+Calibrate(calibrated)
+If calibrated = 1 Then
+  RunLocTest()
+Else
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "cal err")
+  LCD.Update()
+  Program.Delay(3000)
+EndIf
+
+' глобальные @ читаются в функции: компилятор проверяет порядок развёртки
+Function RunLocTest()
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "LOC TEST")
+  LCD.Text(1, 0, 30, 1, "On any straight")
+  LCD.Text(1, 0, 50, 1, "Press to run")
+  LCD.Update()
+  Buttons.Flush()
+  Buttons.Wait()
+  Localize(ok)
+  Motor.Stop("BC", "true")
+  LCD.Clear()
+  If ok = 1 Then
+    Speaker.Tone(50, 880, 300)
+    LCD.Text(1, 0, 0, 2, "FOUND")
+  Else
+    Speaker.Tone(30, 200, 500)
+    LCD.Text(1, 0, 0, 2, "LOST")
+  EndIf
+  NodeName(@cur_node, node_name)
+  PortName(@cur_q, port_name)
+  LCD.Text(1, 0, 25, 1, "node:")
+  LCD.Text(1, 60, 25, 1, node_name)
+  LCD.Text(1, 100, 25, 1, port_name)
+  LCD.Text(1, 0, 40, 1, "fail/mot:")
+  LCD.Text(1, 90, 40, 1, @loc_fail)
+  LCD.Text(1, 120, 40, 1, @motion_status)
+  LCD.Text(1, 0, 55, 1, "hyp/legs:")
+  LCD.Text(1, 90, 55, 1, @hc)
+  LCD.Text(1, 120, 55, 1, @loc_legs)
+  LCD.Text(1, 0, 70, 1, "last len:")
+  LCD.Text(1, 90, 70, 1, Math.Round(@obs_len))
+  LCD.Text(1, 0, 85, 1, "last turn:")
+  LCD.Text(1, 90, 85, 1, Math.Round(@obs_turn))
+  LCD.Update()
+  Buttons.Flush()
+  Buttons.Wait()
+EndFunction

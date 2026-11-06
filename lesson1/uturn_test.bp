@@ -1,0 +1,46 @@
+folder "prjs" "uturn_test"
+include "lib"
+
+motion_status = 0
+@uturn_degrees = 0
+@uturn_light = 0 - 1
+' Компилятор проверяет и остальные функции s1nav; в этом тесте они не вызываются.
+@hx = 1
+@hy = 0
+@mirror = 1
+@turn_approach = 180
+@turn_speed = 30
+@turn_90 = 300
+@turn_180 = 600
+@hop_limit = 1400
+@run_speed = 40
+Setup(1, 0)
+Calibrate(calibrated)
+If calibrated = 1 Then
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "180 TEST")
+  LCD.Text(1, 0, 30, 1, "Sensors on crossing")
+  LCD.Text(1, 0, 50, 1, "Face incoming road")
+  LCD.Text(1, 0, 70, 1, "Press to turn")
+  LCD.Update()
+  Buttons.Flush()
+  Buttons.Wait()
+  UTurn(30, 600)
+  Motor.Stop("BC", "true")
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "180 STOP")
+  LCD.Text(1, 0, 30, 1, "status:")
+  LCD.Text(1, 85, 30, 1, @motion_status)
+  LCD.Text(1, 0, 50, 1, "wheel deg:")
+  LCD.Text(1, 100, 50, 1, @uturn_degrees)
+  LCD.Text(1, 0, 70, 1, "sensor 3:")
+  LCD.Text(1, 100, 70, 1, @uturn_light)
+  LCD.Text(1, 0, 90, 1, "No forward motion")
+  LCD.Update()
+Else
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "cal err")
+  LCD.Update()
+EndIf
+
+include "s1nav"

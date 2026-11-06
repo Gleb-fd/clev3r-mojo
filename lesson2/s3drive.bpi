@@ -1,0 +1,273 @@
+' движение для «Старшая 3» поверх ../lesson1/lib: участок по линии до
+' события (перекрёсток или черта) с замером пути и поворота корпуса,
+' проверка серой зоны за чертой, проверка линии качанием, задний ход,
+' разворот на 180 по линии.
+'
+' Пути в мм, перевод в градусы колеса через @deg_per_mm (DriveInit).
+' Поворот корпуса: (B - C) по энкодерам, + вправо (по часовой сверху).
+'
+' Результат FollowLeg:
+' @leg_event 1 узел найден, 0 нет
+' @leg_mm путь от старта до входа на чёрное (или весь путь без события)
+' @leg_turn поворот корпуса за участок, градусы
+' @leg_grey 1 за чертой серое (финиш), только при grey_check = 1
+' @leg_creep сколько проехали после входа на чёрное до остановки, мм
+
+Function DriveInit()
+  @deg_per_mm = 360 / (Math.Pi * @wheel_mm)
+  @leg_event = 0
+  @leg_mm = 0
+  @leg_turn = 0
+  @leg_grey = 0
+  @leg_creep = 0
+  @spin_done = 0
+  ' флаг модуля кода: FollowLeg зовёт CodeSample, пока он 1
+  @code_active = 0
+EndFunction
+
+Function FollowLeg(in number limit_mm, in number speed, in number grey_check)
+  @leg_event = 0
+  @leg_mm = 0
+  @leg_turn = 0
+  @leg_grey = 0
+  @leg_creep = 0
+  limit = limit_mm * @deg_per_mm
+  GuardMove(limit, speed, fg_ok, fg_v)
+  If fg_ok = 0 Then
+    Return
+  EndIf
+  If @calibrated <> 1 Then
+    @motion_status = 5
+    Motor.Stop("BC", "true")
+    Return
+  EndIf
+  Motor.ResetCount("BC")
+  map_data(2, left_value)
+  map_data(3, right_value)
+  ' стоим на черте (после S): узел засчитываем только после схода с неё
+  on_black = 0
+  If left_value <= 25 And right_value <= 25 Then
+    on_black = 1
+  EndIf
+  previous_error = right_value - left_value
+  previous_time = EV3.Time
+  traveled = 0
+  black_samples = 0
+  run_start = 0
+  entry = 0
+  ' 0 ищем узел, 1 съезжаем с черты, 2 доезжаем до пробы серого
+  phase = 0
+  exit_at = 0
+  grey_sum = 0
+  grey_n = 0
+  gap = @grey_gap_mm * @deg_per_mm
+  start_time = EV3.Time
+  timeout = limit * 300 / fg_v + 5000
+  @motion_status = 3
+  first_sample = 1
+  While traveled < limit And EV3.Time - start_time < timeout
+    map_data(2, left_value)
+    map_data(3, right_value)
+    If phase = 0 Then
+      If on_black = 1 Then
+        If left_value > 25 Or right_value > 25 Then
+          on_black = 0
+        EndIf
+      Else
+        If left_value <= 25 And right_value <= 25 Then
+          If black_samples = 0 Then
+            run_start = traveled
+          EndIf
+          black_samples = black_samples + 1
+        Else
+          black_samples = 0
+        EndIf
+        If black_samples >= 3 Then
+          entry = run_start
+          @leg_event = 1
+          If grey_check <> 1 Then
+            @motion_status = 1
+            Break
+          EndIf
+          phase = 1
+          ' за чертой финиша только серая зона: путь до пробы ограничен
+          limit = traveled + (40 + @grey_gap_mm) * @deg_per_mm
+        EndIf
+      EndIf
+    ElseIf phase = 1 Then
+      If left_value > 35 And right_value > 35 Then
+        exit_at = traveled
+        phase = 2
+      EndIf
+    Else
+      If traveled >= exit_at + gap Then
+        grey_sum = grey_sum + (left_value + right_value) / 2
+        grey_n = grey_n + 1
+        If grey_n >= 3 Then
+          If grey_sum / grey_n < @grey_level Then
+            @leg_grey = 1
+          EndIf
+          @motion_status = 1
+          Break
+        EndIf
+      EndIf
+    EndIf
+    error = right_value - left_value
+    now = EV3.Time
+    elapsed = Math.Max(1, now - previous_time)
+    derivative = (error - previous_error) * 10 / elapsed
+    If first_sample = 1 Then
+      derivative = 0
+    EndIf
+    correction = error * (8.0 / fg_v) + derivative * (30.0 / fg_v)
+    previous_error = error
+    previous_time = now
+    ClampSym(correction, fg_v * 0.6, correction)
+    Clamp(fg_v - correction, 10, 100, left_speed)
+    Clamp(fg_v + correction, 10, 100, right_speed)
+    MotorB.SetSpeed(left_speed)
+    MotorC.SetSpeed(right_speed)
+    If first_sample = 1 Then
+      MotorBC.Start()
+      first_sample = 0
+    EndIf
+    If @code_active = 1 Then
+      CodeSample(traveled / @deg_per_mm)
+    EndIf
+    Program.Delay(10)
+    traveled = (Math.Abs(Motor.GetCount("B")) + Math.Abs(Motor.GetCount("C"))) / 2
+  EndWhile
+  Motor.Stop("BC", "true")
+  count_b = Math.Abs(Motor.GetCount("B"))
+  count_c = Math.Abs(Motor.GetCount("C"))
+  total = (count_b + count_c) / 2
+  @leg_turn = (count_b - count_c) / @deg_per_mm / @track_mm * 180 / Math.Pi
+  If @leg_event = 1 Then
+    ' без пробы серого (phase 1/2 не закончились) узел всё равно найден
+    @motion_status = 1
+    @leg_mm = entry / @deg_per_mm
+    @leg_creep = (total - entry) / @deg_per_mm
+  Else
+    @leg_mm = total / @deg_per_mm
+    If traveled >= limit Then
+      @motion_status = 2
+    EndIf
+  EndIf
+EndFunction
+
+' Поворот на месте: dir 1 влево, 2 вправо, deg — градусы колеса.
+' watch = 1: остановиться, как только любой датчик увидит чёрное.
+Function SpinWatch(in number dir, in number deg, in number watch, out number found)
+  found = 0
+  @spin_done = 0
+  If deg < 1 Then
+    Return
+  EndIf
+  v = Math.Abs(@turn_speed)
+  Clamp(v, 10, 100, v)
+  Motor.ResetCount("BC")
+  If dir = 1 Then
+    MotorB.SetSpeed(0 - v)
+    MotorC.SetSpeed(v)
+  Else
+    MotorB.SetSpeed(v)
+    MotorC.SetSpeed(0 - v)
+  EndIf
+  MotorBC.Start()
+  turned = 0
+  black_samples = 0
+  start_time = EV3.Time
+  timeout = deg * 300 / v + 3000
+  While turned < deg And EV3.Time - start_time < timeout
+    If watch = 1 Then
+      map_data(2, left_value)
+      map_data(3, right_value)
+      If left_value <= 25 Or right_value <= 25 Then
+        black_samples = black_samples + 1
+      Else
+        black_samples = 0
+      EndIf
+      If black_samples >= 2 Then
+        found = 1
+        Break
+      EndIf
+    EndIf
+    Program.Delay(10)
+    turned = Math.Max(Math.Abs(Motor.GetCount("B")), Math.Abs(Motor.GetCount("C")))
+  EndWhile
+  Motor.Stop("BC", "true")
+  @spin_done = turned
+EndFunction
+
+' Есть ли линия под роботом: качнуться влево, потом вправо на @check_deg.
+' Если линии нет, робот возвращается к исходному курсу.
+Function LineCheck(out number found)
+  SpinWatch(1, @check_deg, 1, found)
+  If found = 1 Then
+    Return
+  EndIf
+  SpinWatch(2, @check_deg * 2, 1, found)
+  If found = 1 Then
+    Return
+  EndIf
+  SpinWatch(1, @check_deg, 0, found)
+EndFunction
+
+Function MoveBack(in number mm)
+  @motion_status = 1
+  deg = mm * @deg_per_mm
+  If deg < 1 Then
+    Return
+  EndIf
+  v = Math.Abs(@turn_speed)
+  Clamp(v, 10, 100, v)
+  Motor.ScheduleSync("BC", 0 - v, 0 - v, deg, "true")
+  WaitMove(deg * 300 / v + 5000)
+EndFunction
+
+' Разворот на месте вправо, стоп по датчику 3 после 70% предела.
+' Без подъезда: за чертой зоны может стоять элемент.
+Function UTurnLine()
+  @motion_status = 4
+  max_turn = @turn_180
+  v = Math.Abs(@turn_speed)
+  If max_turn < 1 Or v = 0 Then
+    Motor.Stop("BC", "true")
+    Return
+  EndIf
+  If @calibrated <> 1 Then
+    @motion_status = 5
+    Motor.Stop("BC", "true")
+    Return
+  EndIf
+  Clamp(v, 10, 100, v)
+  Motor.ResetCount("BC")
+  MotorB.SetSpeed(v)
+  MotorC.SetSpeed(0 - v)
+  MotorBC.Start()
+  late = max_turn * 7 / 10
+  black_samples = 0
+  turned = 0
+  start_time = EV3.Time
+  timeout = max_turn * 300 / v + 5000
+  @motion_status = 3
+  While turned < max_turn And EV3.Time - start_time < timeout
+    map_data(3, value)
+    If turned > late And value <= 25 Then
+      black_samples = black_samples + 1
+    Else
+      black_samples = 0
+    EndIf
+    If black_samples >= 3 Then
+      @motion_status = 1
+      Break
+    EndIf
+    Program.Delay(10)
+    turned = Math.Max(Math.Abs(Motor.GetCount("B")), Math.Abs(Motor.GetCount("C")))
+  EndWhile
+  Motor.Stop("BC", "true")
+  @spin_done = turned
+  If turned >= max_turn Then
+    @motion_status = 2
+  EndIf
+EndFunction

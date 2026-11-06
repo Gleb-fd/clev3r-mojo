@@ -1,0 +1,116 @@
+folder "prjs" "grid_test"
+include "lib"
+
+motion_status = 0
+Setup(1, 0)
+Calibrate(calibrated)
+If calibrated <> 1 Then
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "GRID")
+  LCD.Text(1, 0, 25, 2, "cal err")
+  Speaker.Tone(40, 300, 500)
+  LCD.Update()
+Else
+  GridRun(failed)
+  Motor.Stop("BC", "true")
+  LCD.Clear()
+  If failed = 0 Then
+    LCD.Text(1, 0, 0, 2, "GRID")
+    LCD.Text(1, 0, 25, 2, "DONE")
+  Else
+    LCD.Text(1, 0, 0, 2, "GRID FAIL")
+    LCD.Text(1, 0, 25, 1, "step:")
+    LCD.Text(1, 70, 25, 1, failed)
+    LCD.Text(1, 0, 45, 1, "status:")
+    LCD.Text(1, 70, 45, 1, @motion_status)
+  EndIf
+  LCD.Update()
+  Speaker.Tone(50, 660, 400)
+EndIf
+
+Function GridRun(out number failed)
+  failed = 0
+  @run_speed = 40
+  @turn_speed = 30
+  @turn_90 = 300
+  @turn_approach = 180
+  @hop_limit = 1400
+  @entry_deg = 2600
+  @mirror = 1
+  @hx = 1
+  @hy = 0
+  ' 1 = поворачивать налево, 2 = направо. Поменять, если робот крутится
+  ' зеркально и после поворота едет не к Б2, а к Б4.
+  turn_dir = 1
+
+  ' ── шаг 1: въезд в узел А3 по западной дороге ──
+  st = 1
+  ShowStep(st)
+  PD_xn(@entry_deg, 25, 1)
+  If @motion_status <> 1 Then
+    failed = st
+    FailScreen(st)
+    Return
+  EndIf
+
+  ' ── шаг 2: хоп А3 -> Б3 на восток (курс уже восточный) ──
+  st = 2
+  ShowStep(st)
+  PD_xn(@hop_limit, @run_speed, 1)
+  If @motion_status <> 1 Then
+    failed = st
+    FailScreen(st)
+    Return
+  EndIf
+
+  ' ── шаг 3: поворот в сторону Б2 (север при виде сверху) ──
+  st = 3
+  ShowStep(st)
+  TurnToLine(turn_dir, @turn_approach, @turn_speed, @turn_90)
+  If @motion_status <> 1 Then
+    failed = st
+    FailScreen(st)
+    Return
+  EndIf
+  @hx = 0
+  @hy = 0 - 1
+
+  ' ── шаг 4: хоп Б3 -> Б2 ──
+  st = 4
+  ShowStep(st)
+  PD_xn(@hop_limit, @run_speed, 1)
+  If @motion_status <> 1 Then
+    failed = st
+    FailScreen(st)
+    Return
+  EndIf
+
+  ' цель: стоим на Б2, пауза для судьи + сигнал
+  Motor.Stop("BC", "true")
+  Program.Delay(2200)
+  Speaker.Tone(50, 440, 500)
+EndFunction
+
+' Номер текущего шага крупно — видно сразу после остановки.
+Function ShowStep(in number s)
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 1, "GRID")
+  LCD.Text(1, 0, 10, 2, "step:")
+  LCD.Text(1, 0, 30, 2, s)
+  LCD.Update()
+EndFunction
+
+' Экран аварии: шаг и код движения (1 успех, 2 лимит, 3 таймаут, 4 параметры,
+' 5 нет калибровки — см. README).
+Function FailScreen(in number s)
+  Motor.Stop("BC", "true")
+  Speaker.Tone(30, 200, 250)
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "GRID FAIL")
+  LCD.Text(1, 0, 25, 1, "step:")
+  LCD.Text(1, 70, 25, 1, s)
+  LCD.Text(1, 0, 45, 1, "status:")
+  LCD.Text(1, 70, 45, 1, @motion_status)
+  LCD.Update()
+  Program.Delay(4000)
+EndFunction

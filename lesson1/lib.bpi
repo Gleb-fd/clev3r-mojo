@@ -1,0 +1,333 @@
+' общие процедуры: езда по линии (PD), повороты, разгон/торможение
+'
+' сенсоры: 2 левый, 3 правый; моторы B левый, C правый
+'
+' калибровка: нули до Calibrate. Инициализация в шапке, а не только в
+' Calibrate, иначе bp check по голой библиотеке не видит присваиваний
+@left_white = 0
+@right_white = 0
+@left_black = 0
+@right_black = 0
+@calibrated = 0
+@motion_status = 0
+'
+' скорость в цикле задаём SetSpeed, стартует один MotorBC.Start,
+' новый Start на каждом такте не нужен. Setup один раз в начале:
+' Setup(1, 0) если B зеркальный, Setup(0, 1) если C
+'
+' @motion_status после движения: 1 дошли, 2 не нашли линию или перекрёсток,
+' 3 таймаут, 4 плохие аргументы, 5 нет калибровки. При ошибке маршрут стоп.
+' скорость берём по модулю, ноль запрещён
+
+Function Clamp(in number value, in number low, in number high, out number result)
+  value = Math.Max(value, low)
+  result = value - Math.Max(0, value - high)
+EndFunction
+
+' [-limit..limit]
+Function ClampSym(in number value, in number limit, out number result)
+  value = Math.Max(value, 0 - limit)
+  result = value - Math.Max(0, value - limit)
+EndFunction
+
+' общая проверка перед движением: limit >= 1, скорость не ноль, иначе
+' статус 4 и стоп. при успехе ok = 1, v = модуль скорости в [10..100]
+Function GuardMove(in number limit, in number speed, out number ok, out number v)
+  @motion_status = 4
+  ok = 0
+  v = 0
+  If limit < 1 Or speed = 0 Then
+    Motor.Stop("BC", "true")
+    Return
+  EndIf
+  v = Math.Abs(speed)
+  Clamp(v, 10, 100, v)
+  ok = 1
+EndFunction
+
+Function Setup(in number invert_b, in number invert_c)
+  Motor.Stop("BC", "true")
+  @motion_status = 1
+  @calibrated = 0
+  If invert_b = 1 Then
+    Motor.Invert("B")
+  EndIf
+  If invert_c = 1 Then
+    Motor.Invert("C")
+  EndIf
+EndFunction
+
+Function Calibrate(out number success)
+  Motor.Stop("BC", "true")
+  success = 0
+  @calibrated = 0
+  Sensor.SetMode(2, 0)
+  Sensor.SetMode(3, 0)
+  Sensor.Wait(2)
+  Sensor.Wait(3)
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "WHITE")
+  LCD.Text(1, 0, 30, 1, "sens - white")
+  LCD.Text(1, 0, 50, 1, "Press")
+  LCD.Update()
+  Buttons.Flush()
+  Buttons.Wait()
+  @left_white = 0
+  @right_white = 0
+  For sample = 1 To 5
+    @left_white = @left_white + Sensor.ReadPercent(2)
+    @right_white = @right_white + Sensor.ReadPercent(3)
+    Program.Delay(20)
+  EndFor
+  @left_white = @left_white / 5
+  @right_white = @right_white / 5
+
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "BLACK")
+  LCD.Text(1, 0, 30, 1, "sens - black")
+  LCD.Text(1, 0, 50, 1, "Press")
+  LCD.Update()
+  Buttons.Flush()
+  Buttons.Wait()
+  @left_black = 0
+  @right_black = 0
+  For sample = 1 To 5
+    @left_black = @left_black + Sensor.ReadPercent(2)
+    @right_black = @right_black + Sensor.ReadPercent(3)
+    Program.Delay(20)
+  EndFor
+  @left_black = @left_black / 5
+  @right_black = @right_black / 5
+
+  If @left_white - @left_black >= 10 And @right_white - @right_black >= 10 Then
+    success = 1
+    @calibrated = 1
+  EndIf
+EndFunction
+
+Function map_data(in number port, out number value)
+  value = Sensor.ReadPercent(port)
+  If port = 2 And @left_white - @left_black >= 10 Then
+    value = (value - @left_black) * 100 / (@left_white - @left_black)
+  EndIf
+  If port = 3 And @right_white - @right_black >= 10 Then
+    value = (value - @right_black) * 100 / (@right_white - @right_black)
+  EndIf
+  If value < 0 Then
+    value = 0
+  EndIf
+  If value > 100 Then
+    value = 100
+  EndIf
+EndFunction
+
+Function WaitMove(in number timeout)
+  start_time = EV3.Time
+  @motion_status = 1
+  While Motor.IsBusy("BC") = "True"
+    If EV3.Time - start_time >= timeout Then
+      @motion_status = 3
+      Motor.Stop("BC", "true")
+      Return
+    EndIf
+    Program.Delay(10)
+  EndWhile
+EndFunction
+
+Function MoveForward(in number degrees, in number speed)
+  GuardMove(degrees, speed, mf_ok, mf_v)
+  If mf_ok = 0 Then
+    Return
+  EndIf
+  Motor.ScheduleSync("BC", mf_v, mf_v, degrees, "true")
+  WaitMove(degrees * 300 / mf_v + 5000)
+EndFunction
+
+Function FollowLine(in number degrees, in number speed, in number stop_at_crossing)
+  GuardMove(degrees, speed, fl_ok, fl_v)
+  If fl_ok = 0 Then
+    Return
+  EndIf
+  stop_at_crossing = Math.Floor(stop_at_crossing)
+  If stop_at_crossing < 0 Then
+    Motor.Stop("BC", "true")
+    Return
+  EndIf
+  If @calibrated <> 1 Then
+    @motion_status = 5
+    Motor.Stop("BC", "true")
+    Return
+  EndIf
+  Motor.ResetCount("BC")
+  map_data(2, left_value)
+  map_data(3, right_value)
+  previous_error = right_value - left_value
+  previous_time = EV3.Time
+  traveled = 0
+  crossing_samples = 0
+  crossings_seen = 0
+  on_crossing = 0
+  start_time = EV3.Time
+  timeout = degrees * 300 / fl_v + 5000
+  @motion_status = 3
+  first_sample = 1
+  While traveled < degrees And EV3.Time - start_time < timeout
+    map_data(2, left_value)
+    map_data(3, right_value)
+    If stop_at_crossing >= 1 And traveled > 60 Then
+      If on_crossing = 0 Then
+        If left_value <= 25 And right_value <= 25 Then
+          crossing_samples = crossing_samples + 1
+        Else
+          crossing_samples = 0
+        EndIf
+        If crossing_samples >= 3 Then
+          crossings_seen = crossings_seen + 1
+          crossing_samples = 0
+          on_crossing = 1
+          If crossings_seen >= stop_at_crossing Then
+            @motion_status = 1
+            Break
+          EndIf
+        EndIf
+      Else
+        If left_value > 25 Or right_value > 25 Then
+          on_crossing = 0
+        EndIf
+      EndIf
+    EndIf
+    error = right_value - left_value
+    now = EV3.Time
+    elapsed = Math.Max(1, now - previous_time)
+    derivative = (error - previous_error) * 10 / elapsed
+    If first_sample = 1 Then
+      derivative = 0
+    EndIf
+    correction = error * (8.0 / fl_v) + derivative * (30.0 / fl_v)
+    previous_error = error
+    previous_time = now
+    ClampSym(correction, fl_v * 0.6, correction)
+    Clamp(fl_v - correction, 10, 100, left_speed)
+    Clamp(fl_v + correction, 10, 100, right_speed)
+    MotorB.SetSpeed(left_speed)
+    MotorC.SetSpeed(right_speed)
+    If first_sample = 1 Then
+      MotorBC.Start()
+      first_sample = 0
+    EndIf
+    Program.Delay(10)
+    traveled = (Math.Abs(Motor.GetCount("B")) + Math.Abs(Motor.GetCount("C"))) / 2
+  EndWhile
+  Motor.Stop("BC", "true")
+  If traveled >= degrees Then
+    If stop_at_crossing >= 1 Then
+      @motion_status = 2
+    Else
+      @motion_status = 1
+    EndIf
+  EndIf
+EndFunction
+
+Function PD_enc(in number degrees, in number speed)
+  FollowLine(degrees, speed, 0)
+EndFunction
+
+Function PD_x(in number degrees, in number speed)
+  FollowLine(degrees, speed, 1)
+EndFunction
+
+Function PD_xn(in number degrees, in number speed, in number stop_at)
+  FollowLine(degrees, speed, stop_at)
+EndFunction
+
+Function TurnToLine(in number direction, in number approach, in number speed, in number max_turn)
+  GuardMove(max_turn, speed, tt_ok, tt_v)
+  If tt_ok = 0 Then
+    Return
+  EndIf
+  If approach < 0 Then
+    Motor.Stop("BC", "true")
+    Return
+  EndIf
+  If direction <> 1 And direction <> 2 Then
+    Motor.Stop("BC", "true")
+    Return
+  EndIf
+  If @calibrated <> 1 Then
+    @motion_status = 5
+    Motor.Stop("BC", "true")
+    Return
+  EndIf
+  If approach > 0 Then
+    MoveForward(approach, tt_v)
+    If @motion_status <> 1 Then
+      Return
+    EndIf
+  EndIf
+  Motor.ResetCount("BC")
+  If direction = 1 Then
+    MotorB.SetSpeed(0 - tt_v)
+    MotorC.SetSpeed(tt_v)
+    sensor_port = 2
+  Else
+    MotorB.SetSpeed(tt_v)
+    MotorC.SetSpeed(0 - tt_v)
+    sensor_port = 3
+  EndIf
+  MotorBC.Start()
+  blind = max_turn / 4
+  seen_white = 0
+  black_samples = 0
+  turned = 0
+  start_time = EV3.Time
+  timeout = max_turn * 300 / tt_v + 5000
+  @motion_status = 3
+  While turned < max_turn And EV3.Time - start_time < timeout
+    map_data(sensor_port, value)
+    If turned > blind And value > 35 Then
+      seen_white = 1
+    EndIf
+    If seen_white = 1 And value <= 25 Then
+      black_samples = black_samples + 1
+    Else
+      black_samples = 0
+    EndIf
+    If black_samples >= 3 Then
+      @motion_status = 1
+      Break
+    EndIf
+    Program.Delay(10)
+    turned = Math.Max(Math.Abs(Motor.GetCount("B")), Math.Abs(Motor.GetCount("C")))
+  EndWhile
+  Motor.Stop("BC", "true")
+  If turned >= max_turn Then
+    @motion_status = 2
+  EndIf
+EndFunction
+
+Function Left(in number approach, in number speed, in number max_turn)
+  TurnToLine(1, approach, speed, max_turn)
+EndFunction
+
+Function Right(in number approach, in number speed, in number max_turn)
+  TurnToLine(2, approach, speed, max_turn)
+EndFunction
+
+Function RampUp(in number speed, in number degrees)
+  GuardMove(degrees, speed, ru_ok, ru_v)
+  If ru_ok = 0 Then
+    Return
+  EndIf
+  Motor.Schedule("BC", ru_v, degrees, 0, 0, "false")
+  WaitMove(degrees * 600 / ru_v + 5000)
+EndFunction
+
+Function RampDown(in number speed, in number degrees)
+  GuardMove(degrees, speed, rd_ok, rd_v)
+  If rd_ok = 0 Then
+    Return
+  EndIf
+  Motor.Schedule("BC", rd_v, 0, 0, degrees, "true")
+  WaitMove(degrees * 600 / rd_v + 5000)
+  Motor.Stop("BC", "true")
+EndFunction

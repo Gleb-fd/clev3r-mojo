@@ -1,0 +1,111 @@
+folder "prjs" "lesson1"
+include "lib"
+
+motion_status = 0
+calibrated = 0
+failed_stage = 0
+
+Setup(1, 0)
+Calibrate(calibrated)
+If calibrated = 1 Then
+  RunAll(failed_stage)
+EndIf
+
+Motor.Stop("BC", "true")
+LCD.Clear()
+If calibrated <> 1 Then
+  LCD.Text(1, 0, 0, 2, "CAL ERROR")
+ElseIf @motion_status = 1 And failed_stage = 0 Then
+  LCD.Text(1, 0, 0, 2, "ALL OK")
+Else
+  LCD.Text(1, 0, 0, 2, "ERR STEP")
+  LCD.Text(1, 70, 0, 2, failed_stage)
+  LCD.Text(1, 0, 25, 1, "STATUS")
+  LCD.Text(1, 70, 25, 1, @motion_status)
+EndIf
+LCD.Update()
+
+Function RunAll(out number failed_stage)
+  Clamp(120, 0, 100, clamp_result)
+  If clamp_result <> 100 Then
+    failed_stage = 1
+    Return
+  EndIf
+  ClampSym(0 - 120, 100, clamp_result)
+  If clamp_result <> 0 - 100 Then
+    failed_stage = 2
+    Return
+  EndIf
+
+  map_data(2, sensor_value)
+  map_data(3, sensor_value)
+
+  failed_stage = 3
+  MoveForward(20, 20)
+  If @motion_status <> 1 Then
+    Return
+  EndIf
+  failed_stage = 4
+  RampUp(20, 20)
+  If @motion_status <> 1 Then
+    Return
+  EndIf
+  failed_stage = 5
+  RampDown(20, 15)
+  If @motion_status <> 1 Then
+    Return
+  EndIf
+  failed_stage = 6
+  Motor.ScheduleSync("BC", 15, 15, 15, "true")
+  WaitMove(5000)
+  If @motion_status <> 1 Then
+    Return
+  EndIf
+
+  failed_stage = 7
+  FollowLine(60, 20, 0)
+  If @motion_status <> 1 Then
+    Return
+  EndIf
+  failed_stage = 8
+  PD_enc(60, 20)
+  If @motion_status <> 1 Then
+    Return
+  EndIf
+  failed_stage = 9
+  PD_x(300, 20)
+  If @motion_status <> 1 Then
+    Return
+  EndIf
+  failed_stage = 10
+  TurnToLine(1, 0, 20, 180)
+  If @motion_status <> 1 Then
+    Return
+  EndIf
+  failed_stage = 11
+  PD_xn(300, 20, 1)
+  If @motion_status <> 1 Then
+    Return
+  EndIf
+  failed_stage = 12
+  Left(0, 20, 180)
+  If @motion_status <> 1 Then
+    Return
+  EndIf
+  failed_stage = 13
+  PD_x(300, 20)
+  If @motion_status <> 1 Then
+    Return
+  EndIf
+  failed_stage = 14
+  Right(0, 20, 180)
+  If @motion_status <> 1 Then
+    Return
+  EndIf
+  failed_stage = 15
+  PD_xn(300, 20, 1)
+  If @motion_status <> 1 Then
+    Return
+  EndIf
+  failed_stage = 0
+EndFunction

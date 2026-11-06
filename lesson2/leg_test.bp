@@ -1,0 +1,53 @@
+folder "prjs" "leg_test"
+include "../lesson1/lib"
+include "s3params"
+include "s3code"
+include "s3drive"
+
+' калибровка @wheel_mm и @track_mm: один участок по линии до узла.
+' Поставить датчики сразу за перекрёстком и сравнить с картой, например
+' X3 -> X4 через восток: 840 мм, поворот +90; X4 -> X6: 501 мм, 0.
+' len больше карты — уменьшить @wheel_mm; turn меньше 90 — уменьшить @track_mm.
+motion_status = 0
+Setup(1, 0)
+S3Params()
+DriveInit()
+CodeInit()
+Calibrate(calibrated)
+If calibrated = 1 Then
+  RunLegTest()
+Else
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "cal err")
+  LCD.Update()
+  Program.Delay(3000)
+EndIf
+
+' глобальные @ читаются в функции: компилятор проверяет порядок развёртки
+Function RunLegTest()
+  For run = 1 To 20
+    LCD.Clear()
+    LCD.Text(1, 0, 0, 2, "LEG TEST")
+    LCD.Text(1, 0, 30, 1, "Sensors past node")
+    LCD.Text(1, 0, 50, 1, "Press to run")
+    LCD.Update()
+    Buttons.Flush()
+    Buttons.Wait()
+    FollowLeg(@max_leg_test, @run_speed, 1)
+    LCD.Clear()
+    LCD.Text(1, 0, 0, 1, "event/grey:")
+    LCD.Text(1, 100, 0, 1, @leg_event)
+    LCD.Text(1, 130, 0, 1, @leg_grey)
+    LCD.Text(1, 0, 20, 2, "len")
+    LCD.Text(1, 60, 20, 2, Math.Round(@leg_mm))
+    LCD.Text(1, 0, 45, 2, "turn")
+    LCD.Text(1, 70, 45, 2, Math.Round(@leg_turn))
+    LCD.Text(1, 0, 75, 1, "creep:")
+    LCD.Text(1, 70, 75, 1, Math.Round(@leg_creep))
+    LCD.Text(1, 0, 90, 1, "status:")
+    LCD.Text(1, 70, 90, 1, @motion_status)
+    LCD.Update()
+    Buttons.Flush()
+    Buttons.Wait()
+  EndFor
+EndFunction

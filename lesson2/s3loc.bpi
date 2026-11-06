@@ -1,0 +1,568 @@
+' локализация и навигация по графу s3map
+'
+' Состояние робота — узел и порт, через который он в узел въехал:
+' @cur_node, @cur_q. Датчики стоят на черте узла, @cur_c — сколько мм
+' проехали за неё до остановки.
+'
+' Гипотезы @hn[i], @hq[i], i < @hc — такие же пары «узел, порт въезда».
+' Действия: 0 прямо, 1 вправо, 2 влево, 3 разворот, 4 зонд вправо,
+' 5 зонд влево. Зонд: свернуть на поперечную линию, проехать до
+' @probe_mm от узла и проверить линию. У перекрёстка она есть, у черты
+' зоны плечо кончается через 125 мм — робот возвращается назад.
+'
+' Наблюдение после действия: @obs_len (путь от узла до следующего узла),
+' @obs_turn, @obs_present (0 только когда зонд не нашёл линию),
+' @obs_grey (за чертой серое — финиш).
+'
+' @loc_fail: 1 первый участок без узла, 2 нет допустимого действия,
+' 3 ошибка движения, 4 гипотезы кончились, 5 предел участков,
+' 6 нет пути по плану, 7 предел перепланирований.
+
+Function LocInit()
+  @hc = 0
+  @cur_node = 0 - 1
+  @cur_q = 0
+  @cur_c = 0
+  @loc_fail = 0
+  @loc_legs = 0
+  @loc_resets = 0
+  @obs_len = 0
+  @obs_turn = 0
+  @obs_present = 1
+  @obs_grey = 0
+  @obs_grey_used = 0
+  @choice_limit = 0
+  @choice_grey = 0
+  @plan_n = 0
+  @act_cost[0] = 0
+  @act_cost[1] = 1
+  @act_cost[2] = 1
+  @act_cost[3] = 1
+  @act_cost[4] = 3
+  @act_cost[5] = 3
+  ' массивы: гипотезы, прогнозы, Дейкстра (60 состояний узел * 4 + порт)
+  For i = 0 To 63
+    @hn[i] = 0
+    @hq[i] = 0
+    @fn[i] = 0
+    @fq[i] = 0
+    @pl[i] = 0
+    @pt[i] = 0
+    @pp[i] = 0
+    @pg[i] = 0
+    @pd[i] = 0
+    @pdone[i] = 0
+    @pprev[i] = 0
+    @pact[i] = 0
+    @prev_rev[i] = 0
+    @plan_a[i] = 0
+  EndFor
+EndFunction
+
+Function LenTol(in number len, out number t)
+  t = @tol_abs_mm + @tol_rel * len
+EndFunction
+
+' Куда приведёт действие a из состояния (m, q).
+Function Predict(in number m, in number q, in number a, out number ok, out number v, out number pv, out number len, out number turn, out number present)
+  ok = 0
+  v = 0 - 1
+  pv = 0
+  len = 0
+  turn = 0
+  present = 1
+  hd = Math.Remainder(q + 2, 4)
+  p = 0 - 1
+  If m >= @cross_count Then
+    ' черта или финиш: только разворот или зонд по плечу черты
+    If a = 3 Then
+      p = q
+    ElseIf a = 4 Or a = 5 Then
+      arm = Math.Remainder(hd + 1, 4)
+      If a = 5 Then
+        arm = Math.Remainder(hd + 3, 4)
+      EndIf
+      If @barm[m * 4 + arm] = 1 Then
+        p = q
+        present = 0
+      EndIf
+    EndIf
+  Else
+    If a = 0 Then
+      p = hd
+    ElseIf a = 1 Or a = 4 Then
+      p = Math.Remainder(hd + 1, 4)
+    ElseIf a = 2 Or a = 5 Then
+      p = Math.Remainder(hd + 3, 4)
+    Else
+      p = q
+    EndIf
+  EndIf
+  If p < 0 Then
+    Return
+  EndIf
+  k = m * 4 + p
+  If @nb[k] < 0 Or @nsafe[k] <> 1 Then
+    Return
+  EndIf
+  ok = 1
+  v = @nb[k]
+  pv = @nq[k]
+  len = @nlen[k]
+  turn = @nturn[k]
+EndFunction
+
+' Совпадает ли наблюдение с прогнозом (len, turn, present, узел v).
+Function ObsMatch(in number len, in number turn, in number present, in number v, in number use_grey, out number ok)
+  ok = 0
+  LenTol(len, t)
+  If Math.Abs(@obs_len - len) > t Or Math.Abs(@obs_turn - turn) > @turn_tol Then
+    Return
+  EndIf
+  If @obs_present <> present Then
+    Return
+  EndIf
+  If use_grey = 1 Then
+    grey = 0
+    If v = @finish_node Then
+      grey = 1
+    EndIf
+    If grey <> @obs_grey Then
+      Return
+    EndIf
+  EndIf
+  ok = 1
+EndFunction
+
+Function AddHyp(in number m, in number q)
+  For i = 0 To @hc - 1
+    If @hn[i] = m And @hq[i] = q Then
+      Return
+    EndIf
+  EndFor
+  @hn[@hc] = m
+  @hq[@hc] = q
+  @hc = @hc + 1
+EndFunction
+
+' Гипотезы после первого участка: робот стоял на прямом участке старта.
+Function InitHyp()
+  @hc = 0
+  For s = 0 To @start_count - 1
+    If @st_len[s] >= @start_min_mm Then
+      LenTol(@st_dmin[s], t_min)
+      LenTol(@st_dmax[s], t_max)
+      If @obs_len >= @st_dmin[s] - t_min And @obs_len <= @st_dmax[s] + t_max Then
+        If Math.Abs(@obs_turn - @st_turn[s]) <= @turn_tol Then
+          grey = 0
+          If @st_to[s] = @finish_node Then
+            grey = 1
+          EndIf
+          If grey = @obs_grey Then
+            AddHyp(@st_to[s], @st_q[s])
+          EndIf
+        EndIf
+      EndIf
+    EndIf
+  EndFor
+EndFunction
+
+' Все гипотезы потеряны: берём любые рёбра целиком, совпавшие с участком.
+Function ResetFromObs(in number use_grey)
+  @hc = 0
+  @loc_resets = @loc_resets + 1
+  For k = 0 To @node_count * 4 - 1
+    If @nb[k] >= 0 And @nsafe[k] = 1 Then
+      ObsMatch(@nlen[k], @nturn[k], 1, @nb[k], use_grey, ok)
+      If ok = 1 Then
+        AddHyp(@nb[k], @nq[k])
+      EndIf
+    EndIf
+  EndFor
+EndFunction
+
+' Действие, которое лучше всего разделяет гипотезы (жадно на один шаг).
+' Оценка — размер самой большой группы неразличимых прогнозов.
+' Заодно @choice_limit (предел участка) и @choice_grey (нужна проба серого).
+Function ChooseAction(out number best_a)
+  best_a = 0 - 1
+  best_key = 999999
+  For a = 0 To 5
+    valid = 1
+    limit = 0
+    grey = 0
+    For i = 0 To @hc - 1
+      Predict(@hn[i], @hq[i], a, ok, v, pv, len, turn, present)
+      If ok = 0 Then
+        valid = 0
+        Break
+      EndIf
+      @pl[i] = len
+      @pt[i] = turn
+      @pp[i] = present
+      @pg[i] = 0
+      If v = @finish_node Then
+        @pg[i] = 1
+        grey = 1
+      EndIf
+      LenTol(len, t)
+      limit = Math.Max(limit, len + t)
+    EndFor
+    If valid = 1 Then
+      score = 0
+      For i = 0 To @hc - 1
+        LenTol(@pl[i], ti)
+        same = 0
+        For j = 0 To @hc - 1
+          If @pg[j] = @pg[i] And @pp[j] = @pp[i] And @pt[j] = @pt[i] Then
+            LenTol(@pl[j], tj)
+            If Math.Abs(@pl[j] - @pl[i]) < ti + tj Then
+              same = same + 1
+            EndIf
+          EndIf
+        EndFor
+        score = Math.Max(score, same)
+      EndFor
+      key = score * 10 + @act_cost[a]
+      If key < best_key Then
+        best_key = key
+        best_a = a
+        @choice_limit = limit
+        @choice_grey = grey
+      EndIf
+    EndIf
+  EndFor
+EndFunction
+
+Function FilterHyp(in number a, in number use_grey)
+  n = 0
+  For i = 0 To @hc - 1
+    Predict(@hn[i], @hq[i], a, ok, v, pv, len, turn, present)
+    If ok = 1 Then
+      ObsMatch(len, turn, present, v, use_grey, match)
+      If match = 1 Then
+        @fn[n] = v
+        @fq[n] = pv
+        n = n + 1
+      EndIf
+    EndIf
+  EndFor
+  For i = 0 To n - 1
+    @hn[i] = @fn[i]
+    @hq[i] = @fq[i]
+  EndFor
+  @hc = n
+EndFunction
+
+' Выполнить действие a и проехать участок до следующего узла.
+' limit_mm — предел пути от узла, grey — проверять ли серое за чертой.
+Function ExecuteStep(in number a, in number limit_mm, in number grey, out number ok)
+  ok = 0
+  s = @sensor_mm
+  c = @cur_c
+  @obs_present = 1
+  @obs_grey = 0
+  off = 0
+  turn_acc = 0
+  approach = Math.Max(0, s - c) * @deg_per_mm
+  dir = 1
+  If a = 1 Or a = 4 Then
+    dir = 2
+  EndIf
+  If a = 0 Then
+    off = c
+  ElseIf a = 1 Or a = 2 Then
+    TurnToLine(dir, approach, @turn_speed, @turn_90)
+    If @motion_status <> 1 Then
+      Return
+    EndIf
+    off = s
+  ElseIf a = 3 Then
+    UTurnLine()
+    If @motion_status <> 1 Then
+      Return
+    EndIf
+    off = 2 * s - c
+  Else
+    TurnToLine(dir, approach, @turn_speed, @turn_90)
+    If @motion_status <> 1 Then
+      Return
+    EndIf
+    off = s
+    FollowLeg(@probe_mm - s, @probe_speed, 0)
+    If @leg_event = 1 Then
+      ' узел раньше конца зонда: значит это был перекрёсток
+      @obs_len = off + @leg_mm
+      @obs_turn = @leg_turn
+      @cur_c = @leg_creep
+      ok = 1
+      Return
+    EndIf
+    If @motion_status <> 2 Then
+      Return
+    EndIf
+    probe_done = @leg_mm
+    LineCheck(found)
+    If found = 1 Then
+      off = s + probe_done
+      turn_acc = @leg_turn
+    Else
+      @obs_present = 0
+      MoveBack(probe_done)
+      If @motion_status <> 1 Then
+        Return
+      EndIf
+      TurnToLine(dir, 0, @turn_speed, @turn_90)
+      If @motion_status <> 1 Then
+        Return
+      EndIf
+    EndIf
+  EndIf
+  @obs_grey_used = grey
+  FollowLeg(Math.Max(50, limit_mm - off), @run_speed, grey)
+  If @leg_event <> 1 And @motion_status = 2 Then
+    ' узла нет там, где ждали: мы не там, где думаем. Доезжаем до
+    ' ближайшего узла (не дальше самого длинного ребра) — по всему
+    ' участку потом строятся новые гипотезы.
+    done_mm = @leg_mm
+    done_turn = @leg_turn
+    LenTol(@max_edge_mm, t)
+    FollowLeg(Math.Max(50, @max_edge_mm + t - off - done_mm), @run_speed, 1)
+    @leg_mm = @leg_mm + done_mm
+    @leg_turn = @leg_turn + done_turn
+    @obs_grey_used = 1
+  EndIf
+  If @leg_event <> 1 Then
+    Return
+  EndIf
+  @obs_len = off + @leg_mm
+  @obs_turn = turn_acc + @leg_turn
+  @obs_grey = @leg_grey
+  @cur_c = @leg_creep
+  ok = 1
+EndFunction
+
+' Сужать гипотезы, пока не останется одна.
+Function LocLoop(out number ok)
+  ok = 0
+  While @hc > 1 And @loc_legs < @loc_max_legs
+    ShowLoc()
+    ChooseAction(a)
+    If a < 0 Then
+      @loc_fail = 2
+      Return
+    EndIf
+    ExecuteStep(a, @choice_limit, @choice_grey, step_ok)
+    @loc_legs = @loc_legs + 1
+    If step_ok <> 1 Then
+      @loc_fail = 3
+      Return
+    EndIf
+    use_grey = @obs_grey_used
+    FilterHyp(a, use_grey)
+    If @hc = 0 And @loc_resets < 2 Then
+      ResetFromObs(use_grey)
+    EndIf
+  EndWhile
+  If @hc = 1 Then
+    @cur_node = @hn[0]
+    @cur_q = @hq[0]
+    ok = 1
+    Return
+  EndIf
+  @loc_fail = 4
+  If @hc > 1 Then
+    @loc_fail = 5
+  EndIf
+EndFunction
+
+' Старт с неизвестного прямого участка: едем вперёд до первого узла.
+Function Localize(out number ok)
+  ok = 0
+  @cur_c = 0
+  @loc_legs = 1
+  @loc_resets = 0
+  @loc_fail = 0
+  first_limit = 0
+  For s = 0 To @start_count - 1
+    LenTol(@st_dmax[s], t)
+    first_limit = Math.Max(first_limit, @st_dmax[s] + t)
+  EndFor
+  FollowLeg(first_limit, @run_speed, 1)
+  If @leg_event <> 1 Then
+    @loc_fail = 1
+    Return
+  EndIf
+  @obs_len = @leg_mm
+  @obs_turn = @leg_turn
+  @obs_present = 1
+  @obs_grey = @leg_grey
+  @cur_c = @leg_creep
+  InitHyp()
+  If @hc = 0 Then
+    ResetFromObs(1)
+  EndIf
+  LocLoop(ok)
+EndFunction
+
+' Дейкстра по состояниям (узел, порт въезда) до узла target.
+' План: @plan_a[1..@plan_n]. Стоимость — длина + штраф за поворот.
+Function Plan(in number target, out number ok)
+  ok = 0
+  @plan_n = 0
+  states = @node_count * 4
+  For i = 0 To states - 1
+    @pd[i] = 999999
+    @pdone[i] = 0
+    @pprev[i] = 0 - 1
+    @pact[i] = 0 - 1
+  EndFor
+  src = @cur_node * 4 + @cur_q
+  @pd[src] = 0
+  found = 0 - 1
+  For itr = 1 To states
+    best = 0 - 1
+    bestd = 999999
+    For i = 0 To states - 1
+      If @pdone[i] = 0 And @pd[i] < bestd Then
+        bestd = @pd[i]
+        best = i
+      EndIf
+    EndFor
+    If best < 0 Then
+      Break
+    EndIf
+    @pdone[best] = 1
+    m = Math.Floor(best / 4)
+    q = best - m * 4
+    If m = target Then
+      found = best
+      Break
+    EndIf
+    For a = 0 To 3
+      Predict(m, q, a, pok, v, pv, len, turn, present)
+      If pok = 1 Then
+        nid = v * 4 + pv
+        cost = len
+        If a = 1 Or a = 2 Then
+          cost = cost + @cost_turn
+        EndIf
+        If a = 3 Then
+          cost = cost + @cost_uturn
+        EndIf
+        If @pdone[nid] = 0 And @pd[best] + cost < @pd[nid] Then
+          @pd[nid] = @pd[best] + cost
+          @pprev[nid] = best
+          @pact[nid] = a
+        EndIf
+      EndIf
+    EndFor
+  EndFor
+  If found < 0 Then
+    Return
+  EndIf
+  n = 0
+  at = found
+  While at <> src And n < states
+    n = n + 1
+    @prev_rev[n] = @pact[at]
+    at = @pprev[at]
+  EndWhile
+  For i = 1 To n
+    @plan_a[i] = @prev_rev[n - i + 1]
+  EndFor
+  @plan_n = n
+  ok = 1
+EndFunction
+
+' Одно действие по карте из известного состояния: выполнить, сверить
+' участок с прогнозом и обновить @cur_node/@cur_q. lost = 1 — не совпало,
+' тогда гипотезы уже построены по этому участку (ResetFromObs).
+Function DoAction(in number a, out number ok, out number lost)
+  ok = 0
+  lost = 0
+  Predict(@cur_node, @cur_q, a, pok, v, pv, len, turn, present)
+  If pok <> 1 Then
+    @loc_fail = 6
+    Return
+  EndIf
+  LenTol(len, t)
+  grey = 0
+  If v = @finish_node Then
+    grey = 1
+  EndIf
+  ' участок X1 -> финиш проходит вдоль зоны кода
+  If v = @finish_node And @code_enabled = 1 Then
+    CodeBegin()
+    @code_active = 1
+  EndIf
+  ExecuteStep(a, len + t, grey, step_ok)
+  If @code_active = 1 Then
+    @code_active = 0
+    CodeEnd()
+  EndIf
+  If step_ok <> 1 Then
+    @loc_fail = 3
+    Return
+  EndIf
+  ok = 1
+  ObsMatch(len, turn, present, v, @obs_grey_used, match)
+  If match = 1 Then
+    @cur_node = v
+    @cur_q = pv
+    Return
+  EndIf
+  lost = 1
+  @loc_resets = 0
+  ResetFromObs(@obs_grey_used)
+EndFunction
+
+' Доехать до узла target по плану. Каждый участок сверяется с картой;
+' при расхождении робот снова локализуется и строит план заново.
+Function DriveTo(in number target, out number ok)
+  ok = 0
+  replans = 0
+  While replans <= @max_replans
+    Plan(target, pok)
+    If pok <> 1 Then
+      @loc_fail = 6
+      Return
+    EndIf
+    lost = 0
+    For i = 1 To @plan_n
+      If lost = 0 Then
+        DoAction(@plan_a[i], aok, lost)
+        If aok <> 1 Then
+          Return
+        EndIf
+      EndIf
+    EndFor
+    If lost = 0 Then
+      ok = 1
+      Return
+    EndIf
+    ' сбились: гипотезы уже по последнему участку, снова локализация
+    Speaker.Tone(30, 300, 150)
+    @loc_legs = 0
+    LocLoop(lok)
+    If lok <> 1 Then
+      Return
+    EndIf
+    replans = replans + 1
+  EndWhile
+  @loc_fail = 7
+EndFunction
+
+Function ShowLoc()
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "LOCATE")
+  LCD.Text(1, 0, 25, 1, "hyp:")
+  LCD.Text(1, 60, 25, 1, @hc)
+  LCD.Text(1, 0, 40, 1, "len:")
+  LCD.Text(1, 60, 40, 1, Math.Round(@obs_len))
+  LCD.Text(1, 0, 55, 1, "turn:")
+  LCD.Text(1, 60, 55, 1, Math.Round(@obs_turn))
+  LCD.Text(1, 0, 70, 1, "legs:")
+  LCD.Text(1, 60, 70, 1, @loc_legs)
+  LCD.Update()
+EndFunction

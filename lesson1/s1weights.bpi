@@ -1,0 +1,80 @@
+' Координаты: А=1, Б=2, В=3, Г=4, Д=5, Е=6, Ж=7.
+' Ключ x*10+y. east: (x,y)-(x+1,y), south: (x,y)-(x,y+1).
+Function InitRoadWeights()
+  For x = 1 To 7
+    For y = 1 To 5
+      @east[x * 10 + y] = 1
+      @south[x * 10 + y] = 1
+    EndFor
+  EndFor
+  @east[11] = 43
+  @south[11] = 17
+  @east[21] = 26
+  @south[21] = 27
+  @east[31] = 37
+  @south[31] = 22
+  @east[41] = 22
+  @south[41] = 40
+  @east[51] = 24
+  @south[51] = 37
+  @east[61] = 37
+  @south[61] = 24
+  @south[71] = 14
+  @east[12] = 11
+  @south[12] = 14
+  @east[22] = 19
+  @south[22] = 37
+  @east[32] = 40
+  @south[32] = 29
+  @east[42] = 27
+  @south[42] = 43
+  @east[52] = 29
+  @south[52] = 15
+  @east[62] = 42
+  @south[62] = 36
+  @south[72] = 44
+  @east[13] = 36
+  @south[13] = 29
+  @east[23] = 33
+  @south[23] = 40
+  @east[33] = 19
+  @south[33] = 20
+  @east[43] = 34
+  @south[43] = 16
+  @east[53] = 41
+  @south[53] = 42
+  @east[63] = 40
+  @south[63] = 48
+  @south[73] = 26
+  @east[14] = 42
+  @south[14] = 43
+  @east[24] = 49
+  @south[24] = 45
+  @east[34] = 30
+  @south[34] = 36
+  @east[44] = 10
+  @south[44] = 34
+  @east[54] = 27
+  @south[54] = 37
+  @east[64] = 27
+  @south[64] = 40
+  @south[74] = 25
+  @east[15] = 19
+  @east[25] = 24
+  @east[35] = 14
+  @east[45] = 22
+  @east[55] = 42
+  @east[65] = 39
+EndFunction
+
+Function RoadWeight(in number x1, in number y1, in number x2, in number y2, out number w)
+  w = 1
+  ax = Math.Min(x1, x2)
+  ay = Math.Min(y1, y2)
+  If y1 = y2 And Math.Abs(x1 - x2) = 1 Then
+    w = @east[ax * 10 + ay]
+  EndIf
+  If x1 = x2 And Math.Abs(y1 - y2) = 1 Then
+    w = @south[ax * 10 + ay]
+  EndIf
+EndFunction

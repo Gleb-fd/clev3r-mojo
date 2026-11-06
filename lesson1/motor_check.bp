@@ -1,0 +1,15 @@
+folder "prjs" "motor_check"
+
+LCD.Clear()
+LCD.Text(1, 0, 0, 1, "TEST 1: B+C normal")
+LCD.Text(1, 0, 20, 1, "вместе")
+LCD.Text(1, 0, 40, 1, "50 deg")
+LCD.Update()
+Buttons.Flush()
+Buttons.Wait()
+Motor.MoveSync("BC", 20, 20, 50, "true")
+Motor.Stop("BC", "true")
+
+LCD.Clear()
+LCD.Text(1, 0, 0, 1, "Done")
+LCD.Update()

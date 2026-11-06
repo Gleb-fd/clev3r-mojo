@@ -1,0 +1,58 @@
+folder "prjs" "lesson1"
+include "lib"
+
+motion_status = 0
+route_step = 0
+Setup(1, 0)
+
+Calibrate(calibrated)
+If calibrated = 1 Then
+  map_data(2, left_sensor)
+  map_data(3, right_sensor)
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "L:")
+  LCD.Text(1, 40, 0, 2, left_sensor)
+  LCD.Text(1, 0, 25, 2, "R:")
+  LCD.Text(1, 40, 25, 2, right_sensor)
+  LCD.Text(1, 0, 50, 1, "start")
+  LCD.Update()
+  Buttons.Flush()
+  Buttons.Wait()
+
+  RunRoute()
+  Motor.Stop("BC", "true")
+  LCD.Clear()
+  If @motion_status = 1 Then
+    LCD.Text(1, 0, 0, 2, "Done")
+  Else
+    LCD.Text(1, 0, 0, 2, "Motion")
+    LCD.Text(1, 0, 25, 1, "Step:")
+    LCD.Text(1, 60, 25, 1, route_step)
+    LCD.Text(1, 0, 45, 1, "Status:")
+    LCD.Text(1, 60, 45, 1, motion_status)
+  EndIf
+  LCD.Update()
+Else
+  LCD.Clear()
+  LCD.Text(1, 0, 20, 1, "cal err")
+  LCD.Update()
+EndIf
+
+
+Function RunRoute()
+    PD_x(1400, 45)
+    PD_xn(3000, 45, 3)
+    Left(160, 40, 400)
+    ' Right(170, 30, 300)
+    PD_xn(3000, 45, 2)
+    ' Right(170, 45, 300)
+    Left(160, 40, 400)
+    PD_xn(3000, 45, 2)
+    Right(170, 45, 300)
+    ' Left(160, 40, 400)
+    PD_xn(3000, 45, 2)
+    Right(170, 45, 300)
+    ' Left(160, 40, 400)
+    PD_xn(3000, 45, 5)
+    PD_x(1400, 45)
+EndFunction

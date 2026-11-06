@@ -1,0 +1,214 @@
+folder "prjs" "senior1"
+include "lib"
+
+motion_status = 0
+@mission_code = 0 - 1
+@uturn_degrees = 0 - 1
+Setup(1, 0)
+Calibrate(calibrated)
+If calibrated <> 1 Then
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "cal err")
+  Speaker.Tone(40, 300, 500)
+  Program.Delay(500)
+  LCD.Update()
+Else
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "START")
+  LCD.Text(1, 0, 30, 1, "Place in start zone")
+  LCD.Text(1, 0, 50, 1, "Press to run")
+  LCD.Update()
+  Buttons.Flush()
+  Buttons.Wait()
+  RunMission(failed)
+  Motor.Stop("BC", "true")
+  LCD.Clear()
+  If failed = 0 Then
+    LCD.Text(1, 0, 0, 2, "FINISH")
+  Else
+    LCD.Text(1, 0, 0, 2, "FAIL")
+    LCD.Text(1, 0, 25, 1, "stage:")
+    LCD.Text(1, 70, 25, 1, failed)
+    LCD.Text(1, 0, 45, 1, "status:")
+    LCD.Text(1, 70, 45, 1, @motion_status)
+    If failed = 1 Then
+      ShowBarcodeDetails()
+    EndIf
+  EndIf
+  If failed <> 1 Then
+    LCD.Text(1, 0, 65, 1, "CODE:")
+    LCD.Text(1, 85, 65, 1, @mission_code)
+    LCD.Text(1, 0, 85, 1, "U wheel deg:")
+    LCD.Text(1, 110, 85, 1, @uturn_degrees)
+  EndIf
+  LCD.Update()
+EndIf
+
+Function RunMission(out number failed)
+  failed = 0
+  @run_speed = 40
+  @turn_speed = 30
+  @turn_90 = 300
+  @turn_180 = 600
+  @turn_approach = 180
+  @hop_limit = 1400
+  @entry_deg = 2600
+  @exit_deg = 1500
+  @read_max_deg = 3000
+  @read_speed = 13
+  @stripe_min = 35
+  @mirror = 1
+  @gx = 7
+  @gy = 5
+  @sx = 1
+  @sy = 3
+  @hx = 1
+  @hy = 0
+
+  InitRoadWeights()
+  ReadBarcode(code)
+  @mission_code = code
+  If code < 0 Then
+    failed = 1
+    FailStop(1)
+    Return
+  EndIf
+  tx = Math.Floor(code / 10)
+  ty = code - tx * 10
+  If tx < 1 Or tx > @gx Or ty < 1 Or ty > @gy Then
+    failed = 2
+    FailStop(2)
+    Return
+  EndIf
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "CODE:")
+  LCD.Text(1, 80, 0, 2, code)
+  LCD.Update()
+
+  ' ReadBarcode уже проехал весь лист. Ищем первый узел А3.
+  PD_xn(@entry_deg, 25, 1)
+  If @motion_status <> 1 Then
+    failed = 4
+    FailStop(4)
+    Return
+  EndIf
+
+  For i = 0 To 34
+    dist[i] = 99999
+    done[i] = 0
+    prev[i] = 0 - 1
+  EndFor
+  s0 = (@sx - 1) * @gy + (@sy - 1)
+  t0 = (tx - 1) * @gy + (ty - 1)
+  dist[s0] = 0
+  For itr = 1 To 35
+    best = 0 - 1
+    bestd = 99999
+    For i = 0 To 34
+      If done[i] = 0 And dist[i] < bestd Then
+        bestd = dist[i]
+        best = i
+      EndIf
+    EndFor
+    If best >= 0 Then
+      done[best] = 1
+      bx = Math.Floor(best / @gy) + 1
+      by = best - (bx - 1) * @gy + 1
+      For d = 1 To 4
+        If d = 1 Then
+          nx = bx + 1
+          ny = by
+        EndIf
+        If d = 2 Then
+          nx = bx - 1
+          ny = by
+        EndIf
+        If d = 3 Then
+          nx = bx
+          ny = by + 1
+        EndIf
+        If d = 4 Then
+          nx = bx
+          ny = by - 1
+        EndIf
+        If nx >= 1 And nx <= @gx And ny >= 1 And ny <= @gy Then
+          nid = (nx - 1) * @gy + (ny - 1)
+          If done[nid] = 0 Then
+            RoadWeight(bx, by, nx, ny, w)
+            alt = dist[best] + w
+            If alt < dist[nid] Then
+              dist[nid] = alt
+              prev[nid] = best
+            EndIf
+          EndIf
+        EndIf
+      EndFor
+    EndIf
+  EndFor
+
+  at = t0
+  pln = 0
+  While at <> 0 - 1 And pln < 35
+    px = Math.Floor(at / @gy) + 1
+    py = at - (px - 1) * @gy + 1
+    pln = pln + 1
+    rpx[pln] = px
+    rpy[pln] = py
+    at = prev[at]
+  EndWhile
+  For i = 1 To pln
+    fpx[i] = rpx[pln - i + 1]
+    fpy[i] = rpy[pln - i + 1]
+  EndFor
+  If fpx[1] <> @sx Or fpy[1] <> @sy Then
+    failed = 3
+    FailStop(3)
+    Return
+  EndIf
+
+  DrivePath(fpx, fpy, pln, ok)
+  If ok <> 1 Then
+    failed = 5
+    FailStop(5)
+    Return
+  EndIf
+
+  Motor.Stop("BC", "true")
+  Speaker.Tone(50, 440, 500)
+  LCD.Clear()
+  LCD.Text(1, 0, 0, 2, "CODE:")
+  LCD.Text(1, 80, 0, 2, code)
+  LCD.Text(1, 0, 30, 1, "X:")
+  LCD.Text(1, 30, 30, 1, tx)
+  LCD.Text(1, 70, 30, 1, "Y:")
+  LCD.Text(1, 100, 30, 1, ty)
+  LCD.Update()
+  Program.Delay(2200)
+
+  DrivePath(rpx, rpy, pln, ok)
+  If ok <> 1 Then
+    failed = 6
+    FailStop(6)
+    Return
+  EndIf
+
+  FaceDirection(0 - 1, 0, ok)
+  If ok <> 1 Then
+    failed = 7
+    FailStop(7)
+    Return
+  EndIf
+  PD_enc(@exit_deg, 25)
+  If @motion_status <> 1 Then
+    failed = 8
+    FailStop(8)
+    Return
+  EndIf
+  Motor.Stop("BC", "true")
+  Speaker.Tone(50, 660, 400)
+  Program.Delay(500)
+EndFunction
+
+include "s1weights"
+include "s1bar"
+include "s1nav"

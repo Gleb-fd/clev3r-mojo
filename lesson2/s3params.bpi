@@ -1,0 +1,66 @@
+' параметры робота и алгоритма «Старшая 3». Всё, что нужно подстроить
+' под конкретную сборку, собрано здесь.
+
+Function S3Params()
+  ' геометрия: диаметр колеса, колея (между серединами колёс),
+  ' от оси колёс до линии датчиков 2/3
+  @wheel_mm = 56
+  @track_mm = 130
+  @sensor_mm = 85
+  ' скорости
+  @run_speed = 35
+  @turn_speed = 30
+  @probe_speed = 25
+  ' пределы поворотов в градусах колеса (как в lesson1)
+  @turn_90 = 300
+  @turn_180 = 600
+  ' допуски сравнения участка с картой: мм + доля длины, градусы корпуса
+  @tol_abs_mm = 60
+  @tol_rel = 0.08
+  @turn_tol = 45
+  ' старт по правилам: прямой участок не короче 30 см
+  @start_min_mm = 280
+  ' зонд: до какой дальности от узла ехать по плечу (плечо зоны 125 мм),
+  ' качание при проверке линии, градусы колеса в каждую сторону
+  @probe_mm = 175
+  @check_deg = 45
+  ' серый за чертой финиша: отступ от черты и порог (белое = 100)
+  @grey_gap_mm = 8
+  @grey_level = 85
+  ' пределы
+  @loc_max_legs = 12
+  @max_replans = 3
+  ' штрафы в плане маршрута, мм пути
+  @cost_turn = 150
+  @cost_uturn = 300
+  ' сколько проехать за черту финиша, считая от черты
+  @finish_mm = 200
+  ' предел участка в leg_test, мм
+  @max_leg_test = 1400
+EndFunction
+
+Function NodeName(in number n, out string name)
+  name = "?"
+  If n >= 0 And n <= 6 Then
+    name = Text.Append("X", n + 1)
+  ElseIf n = 7 Then
+    name = "F"
+  ElseIf n >= 8 And n <= 13 Then
+    name = Text.Append("Z", n - 7)
+  ElseIf n = 14 Then
+    name = "TOP"
+  EndIf
+EndFunction
+
+Function PortName(in number q, out string name)
+  name = "?"
+  If q = 0 Then
+    name = "N"
+  ElseIf q = 1 Then
+    name = "E"
+  ElseIf q = 2 Then
+    name = "S"
+  ElseIf q = 3 Then
+    name = "W"
+  EndIf
+EndFunction
