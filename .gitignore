@@ -10,3 +10,8 @@ tools/bp_lmsb
 tools/bp_usb
 *.o
 zed-extension/target/
+
+# Local editor state, caches, and Basic Plus build directories
+.openidea/
+.ruff_cache/
+~*/

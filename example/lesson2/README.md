@@ -88,10 +88,10 @@ X2–Z1 541, X2–Z2 349, X2–X4 1011 (+90), X3–X4 840 (+90 через вос
 ```bash
 python3 s3field.py                 # пересобрать s3map.bpi после правок карты
 python3 -m unittest -v test_senior3
-../tools/bp check "$PWD/senior3.bp"
-../tools/bp compile "$PWD/senior3.bp"
-../tools/bp compile "$PWD/loc_test.bp"
-../tools/bp compile "$PWD/leg_test.bp"
+../../tools/bp check "$PWD/senior3.bp"
+../../tools/bp compile "$PWD/senior3.bp"
+../../tools/bp compile "$PWD/loc_test.bp"
+../../tools/bp compile "$PWD/leg_test.bp"
 ```
 
 Тесты транслируют функции из `s3params/s3map/s3code/s3drive/s3loc` в Python

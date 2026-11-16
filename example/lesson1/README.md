@@ -86,18 +86,18 @@
 
 ## Проверка
 
-Проверено местным `../tools/bp`: сборка `test.bp`, `motor_check.bp`, `lib.bp`
+Проверено местным `../../tools/bp`: сборка `test.bp`, `motor_check.bp`, `lib.bp`
 в `.rbf`, а также отдельного временного файла с вызовами всех функций библиотеки,
 включая неиспользуемые в маршруте `RampUp` и `RampDown`. В листинге проверены
 команды `OUTPUT_STEP_SPEED`, `OUTPUT_STEP_SYNC`, `OUTPUT_SPEED`, `OUTPUT_START`.
-Поведение команд сверено с исходниками `../src/bp/resources/c_Motor*.txt`.
+Поведение команд сверено с исходниками `../../src/bp/resources/c_Motor*.txt`.
 
 Для повторной сборки из этой папки:
 
 ```bash
-../tools/bp check "$PWD/test.bp"
-../tools/bp compile "$PWD/test.bp"
-../tools/bp compile "$PWD/motor_check.bp"
+../../tools/bp check "$PWD/test.bp"
+../../tools/bp compile "$PWD/test.bp"
+../../tools/bp compile "$PWD/motor_check.bp"
 ```
 
 Абсолютный путь нужен из-за особенности локального разрешения `include`:
@@ -176,10 +176,10 @@
 начального белого участка; этот сценарий воспроизведён в регрессионных тестах.
 
 ```bash
-../tools/bp check "$PWD/barcode_test.bp"
-../tools/bp compile "$PWD/barcode_test.bp"
-../tools/bp compile "$PWD/senior1.bp"
-../tools/bp compile "$PWD/senior1_full.bp"
+../../tools/bp check "$PWD/barcode_test.bp"
+../../tools/bp compile "$PWD/barcode_test.bp"
+../../tools/bp compile "$PWD/senior1.bp"
+../../tools/bp compile "$PWD/senior1_full.bp"
 python3 -m unittest -v test_senior1.py
 ```
 
@@ -208,8 +208,8 @@ Python-тесты исполняют поддерживаемое подмнож
    `wheel deg` — градусы вращения колеса, **не угол корпуса**.
 
 ```bash
-../tools/bp check "$PWD/uturn_test.bp"
-../tools/bp compile "$PWD/uturn_test.bp"
+../../tools/bp check "$PWD/uturn_test.bp"
+../../tools/bp compile "$PWD/uturn_test.bp"
 ```
 
 Файл для загрузки — `~uturn_test/uturn_test.rbf`. Это диагностическая программа:
@@ -232,6 +232,6 @@ Python-тесты исполняют поддерживаемое подмнож
 Нужно проверить въезд, повороты и полный заезд проекции робота в зелёную зону:
 фиксированный пробег не гарантирует этого без проверки размеров робота.
 
-Адрес Bluetooth задаётся в `../.zed/tasks.json`, `BP_EV3_BT`. Адрес BLOK пока
+Адрес Bluetooth задаётся в `../../.zed/tasks.json`, `BP_EV3_BT`. Адрес BLOK пока
 не подтверждён, поэтому прежняя настройка сохранена. На EV3 он доступен в
 `Settings → Brick Info → ID` (12 символов, разбиваются на пары через двоеточие).
