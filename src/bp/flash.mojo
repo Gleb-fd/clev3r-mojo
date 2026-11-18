@@ -48,6 +48,13 @@ comptime SYS_DELETE_FILE = 0x9C
 
 comptime SYS_SUCCESS = 0x00
 comptime SYS_END_OF_FILE = 0x08
+# EV3Connection.cs:49 (original: `FILE_EXITS`, опечатка в C#): CREATE_DIR на
+# уже существующий каталог возвращает этот статус, а не ошибку.
+comptime SYS_FILE_EXISTS = 0x07
+
+# Счётчик сообщений на проводе — u16 (C# `private static ushort
+# messagecounter`); после 0xFFFF он переполняется и идёт с 0.
+comptime COUNTER_MASK = 0xFFFF
 
 comptime RPL_SYS_OK = 0x03  # SYSTEM_REPLY (EV3Connection.cs:101)
 comptime RPL_SYS_ALT = 0x05  # SYSTEM_REPLY_NO_ERROR (принимается там же)
@@ -172,11 +179,27 @@ def dest_cstr(dest: String) -> List[UInt8]:
 # Кадры: system/direct-пакеты и HID-отчёты
 # ============================================================================
 
+def wire_counter(counter: Int) -> Int:
+    """Счётчик в wire-форме: u16, как `ushort messagecounter` в C#.
+
+    Сравнивать ответ кирпича нужно именно с этим значением: после 65535
+    кирпич видит 0, и сравнение с «полным» Int ложно отвергало бы валидный
+    ACK.
+    """
+    return counter & COUNTER_MASK
+
+
+def advance_counter(counter: Int) -> Int:
+    """Следующий счётчик команды с переполнением u16 (C# `ushort++`)."""
+    return (counter + 1) & COUNTER_MASK
+
+
 def build_system_packet(counter: Int, cmd: Int, args: List[UInt8]) -> List[UInt8]:
     """EV3Connection.SystemCommand: [ctr u16][0x01][cmd][args]."""
+    var ctr = wire_counter(counter)
     var out = List[UInt8]()
-    out.append(UInt8(counter & 0xFF))
-    out.append(UInt8((counter >> 8) & 0xFF))
+    out.append(UInt8(ctr & 0xFF))
+    out.append(UInt8((ctr >> 8) & 0xFF))
     out.append(UInt8(MSG_SYSTEM))
     out.append(UInt8(cmd & 0xFF))
     for i in range(len(args)):
@@ -188,9 +211,10 @@ def build_direct_packet(
     counter: Int, bytecode: List[UInt8], global_bytes: Int, local_bytes: Int
 ) -> List[UInt8]:
     """EV3Connection.DirectCommand: [ctr u16][0x00][globals][gb_hi/lb][bc]."""
+    var ctr = wire_counter(counter)
     var out = List[UInt8]()
-    out.append(UInt8(counter & 0xFF))
-    out.append(UInt8((counter >> 8) & 0xFF))
+    out.append(UInt8(ctr & 0xFF))
+    out.append(UInt8((ctr >> 8) & 0xFF))
     out.append(UInt8(MSG_DIRECT))
     out.append(UInt8(global_bytes & 0xFF))
     out.append(UInt8(((global_bytes >> 8) & 0x03) + (local_bytes << 2)))
@@ -244,7 +268,7 @@ def check_system_reply(
     if len(packet) < 3:
         raise Error("flash: ответ без счётчика")
     var ctr = Int(packet[0]) | (Int(packet[1]) << 8)
-    if ctr != counter:
+    if ctr != wire_counter(counter):
         raise Error("flash: чужой счётчик в ответе")
     var t = packet[2]
     if t != UInt8(RPL_SYS_OK) and t != UInt8(RPL_SYS_ALT):
@@ -269,7 +293,7 @@ def check_direct_reply(
     if len(packet) < 3:
         raise Error("flash: ответ без счётчика")
     var ctr = Int(packet[0]) | (Int(packet[1]) << 8)
-    if ctr != counter:
+    if ctr != wire_counter(counter):
         raise Error("flash: чужой счётчик в ответе")
     if packet[2] == UInt8(RPL_DIRECT_ERR):
         raise Error("flash: VM отклонила direct-команду")
@@ -290,6 +314,21 @@ def check_download_status(reply: List[UInt8], what: String) raises -> Int:
     if reply[0] != UInt8(SYS_SUCCESS) and reply[0] != UInt8(SYS_END_OF_FILE):
         raise Error("flash: " + what + " статус=" + String(Int(reply[0])))
     return Int(reply[1])
+
+
+def check_create_dir_status(reply: List[UInt8]) raises -> Int:
+    """Статус CREATE_DIR: SUCCESS или FILE_EXISTS (каталог уже есть).
+
+    Валидность кадра (ctr/type/эхо) к этому моменту уже проверил
+    check_system_reply. Любой другой статус — ошибка, а не «best-effort
+    продолжаем»: молча игнорировать отказ кирпича нельзя.
+    """
+    if len(reply) < 1:
+        raise Error("flash: короткий ответ на CREATE_DIR")
+    var st = Int(reply[0])
+    if st != SYS_SUCCESS and st != SYS_FILE_EXISTS:
+        raise Error("flash: CREATE_DIR статус=" + String(st))
+    return st
 
 
 # ============================================================================
@@ -955,7 +994,7 @@ def recv_matching(
                 raise Error("flash: нет ответа от кирпича (таймаут)")
             continue
         var ctr = Int(packet[0]) | (Int(packet[1]) << 8)
-        if ctr != counter:
+        if ctr != wire_counter(counter):
             if left <= 0:
                 raise Error("flash: нет ответа от кирпича (таймаут)")
             continue
@@ -998,7 +1037,7 @@ def sys_cmd(
     var ctr = counter
     var attempt = 1
     while True:
-        ctr += 1
+        ctr = advance_counter(ctr)
         send_packet_any(fd, build_system_packet(ctr, cmd, args), transport)
         var packet: List[UInt8]
         try:
@@ -1031,7 +1070,7 @@ def direct_cmd(
     var ctr = counter
     var attempt = 0
     while True:
-        ctr += 1
+        ctr = advance_counter(ctr)
         send_packet_any(
             fd, build_direct_packet(ctr, bytecode, global_bytes, 0), transport
         )
@@ -1096,10 +1135,10 @@ def cmd_flash(rbf_path: String, device: String) raises -> Int:
     if dry:
         print("flash: dry run")
         print("файл: " + rbf_path + " (" + String(total) + " байт) -> " + dest)
-        counter += 1
+        counter = advance_counter(counter)
         var mk = build_system_packet(counter, SYS_CREATE_DIR, dest_cstr(DEFAULT_DEST_DIR))
         print_frame(counter, "CREATE_DIR " + DEFAULT_DEST_DIR, mk)
-        counter += 1
+        counter = advance_counter(counter)
         var bargs = build_begin_args(total, dest_b, data, first)
         print_frame(
             counter,
@@ -1107,7 +1146,7 @@ def cmd_flash(rbf_path: String, device: String) raises -> Int:
             build_system_packet(counter, SYS_BEGIN_DOWNLOAD, bargs),
         )
         for i in range(len(ranges)):
-            counter += 1
+            counter = advance_counter(counter)
             var pos = ranges[i][0]
             var n = ranges[i][1]
             var cargs = build_continue_args(0, data, pos, n)
@@ -1116,7 +1155,7 @@ def cmd_flash(rbf_path: String, device: String) raises -> Int:
                 "CONTINUE_DOWNLOAD pos=" + String(pos) + " n=" + String(n),
                 build_system_packet(counter, SYS_CONTINUE_DOWNLOAD, cargs),
             )
-        counter += 1
+        counter = advance_counter(counter)
         print_frame(
             counter,
             "direct PROGRAM_START globals=10",
@@ -1143,12 +1182,18 @@ def cmd_flash(rbf_path: String, device: String) raises -> Int:
 
     var fd = open_transport(transport, target)
     try:
-        # Каталог под программу (best-effort: может уже существовать).
-        try:
-            var r = sys_cmd(fd, counter, SYS_CREATE_DIR, dest_cstr(DEFAULT_DEST_DIR), 1, transport)
-            counter = r[0]
-        except:
-            counter += 1
+        # Каталог под программу. CREATE_DIR идемпотентна по смыслу, но
+        # проглатывать ЛЮБУЮ ошибку нельзя: битый/чужой/оборванный ответ или
+        # таймаут означают неопределённое состояние протокола, и продолжать
+        # заливку (BEGIN) вслепую — доверять непроверенному ACK. Принимаем
+        # только валидный ответ (ctr/type/эхо — в check_system_reply) со
+        # статусом SUCCESS или FILE_EXISTS (EV3Connection.cs:49, каталог уже
+        # существует); остальное — фатально до BEGIN.
+        var mk = sys_cmd(
+            fd, counter, SYS_CREATE_DIR, dest_cstr(DEFAULT_DEST_DIR), 1, transport
+        )
+        counter = mk[0]
+        _ = check_create_dir_status(mk[1])
         # BEGIN_DOWNLOAD: размер + путь + первый кусок; ответ даёт handle.
         var bargs = build_begin_args(total, dest_b, data, first)
         var rb = sys_cmd(fd, counter, SYS_BEGIN_DOWNLOAD, bargs, MAX_ATTEMPTS, transport)

@@ -15,6 +15,15 @@ from bp.lsp import cmd_lsp
 from bp.flash import cmd_flash
 
 
+def missing_operand(message: String):
+    """Ошибка использования: нет обязательного операнда -> сообщение,
+    краткая подсказка по `bp help`, код возврата 1. Успех 0 остаётся только
+    у верхнеуровневых help/-h/--help и запуска без аргументов."""
+    print("bp: " + message)
+    print("Подсказка: bp help — список команд и аргументов.")
+    exit(1)
+
+
 def cmd_lex(path: String) raises -> Int:
     """Стадии 1-2: печатает канонический текст каждой строки."""
     var lines = read_lines(path)
@@ -101,32 +110,28 @@ def main() raises:
     var cmd = a[1]
     if cmd == "lex":
         if len(a) < 3:
-            print("нужен путь к файлу: bp lex <file.bp>")
-            return
+            missing_operand("нужен путь к файлу: bp lex <file.bp>")
         var lrc = cmd_lex(a[2])
         if lrc != 0:
             exit(lrc)
         return
     if cmd == "lmsb":
         if len(a) < 3:
-            print("нужен путь к файлу: bp lmsb <путь/к/~Имя/~Имя.bp>")
-            return
+            missing_operand("нужен путь к файлу: bp lmsb <путь/к/~Имя/~Имя.bp>")
         var mrc = cmd_lmsb(a[2])
         if mrc != 0:
             exit(mrc)
         return
     if cmd == "rbf":
         if len(a) < 3:
-            print("нужен путь к файлу: bp rbf <путь/к/<Имя>.lmsb>")
-            return
+            missing_operand("нужен путь к файлу: bp rbf <путь/к/<Имя>.lmsb>")
         var rrc = cmd_rbf(a[2])
         if rrc != 0:
             exit(rrc)
         return
     if cmd == "expand":
         if len(a) < 3:
-            print("нужен путь к файлу: bp expand <file.bp> <outdir>")
-            return
+            missing_operand("нужен путь к файлу: bp expand <file.bp> <outdir>")
         var outdir = ""
         if len(a) > 3:
             outdir = a[3]
@@ -138,8 +143,7 @@ def main() raises:
         return
     if cmd == "compile":
         if len(a) < 3:
-            print("нужен путь к файлу: bp compile <file.bp> [outdir]")
-            return
+            missing_operand("нужен путь к файлу: bp compile <file.bp> [outdir]")
         var outdir = ""
         if len(a) > 3:
             outdir = a[3]
@@ -149,16 +153,14 @@ def main() raises:
         return
     if cmd == "check":
         if len(a) < 3:
-            print("нужен путь к файлу: bp check <file.bp>")
-            return
+            missing_operand("нужен путь к файлу: bp check <file.bp>")
         var crc = cmd_check(a[2])
         if crc != 0:
             exit(crc)
         return
     if cmd == "flash":
         if len(a) < 3:
-            print("нужен путь к файлу: bp flash <file.bp|file.rbf> [device]")
-            return
+            missing_operand("нужен путь к файлу: bp flash <file.bp|file.rbf> [device]")
         var device = ""
         if len(a) > 3:
             device = a[3]

@@ -31,6 +31,9 @@ from bp.flash import (
     build_system_packet,
     c_close,
     c_read_file,
+    c_read_full,
+    c_write_all,
+    check_create_dir_status,
     check_direct_reply,
     check_download_status,
     check_system_reply,
@@ -39,6 +42,10 @@ from bp.flash import (
     continue_ranges,
     dest_cstr,
     is_retry_safe,
+    advance_counter,
+    wire_counter,
+    sys_cmd,
+    direct_cmd,
     open_transport,
     encode_const,
     encode_dc_string,
@@ -365,6 +372,143 @@ def test_stream_transports() raises:
     )
 
 
+def _socketpair_stream() raises -> Tuple[Int, Int]:
+    """Пара соединённых stream-сокетов (AF_UNIX): детерминированный peer для
+    sys_cmd/direct_cmd без железа и без потоков."""
+    # socketpair пишет два C int (по 4 байта), поэтому буфер — байтовый.
+    var sv = List[UInt8](length=8, fill=UInt8(0))
+    var rc = Int(external_call["socketpair", Int](1, 1, 0, sv.unsafe_ptr()))
+    if rc != 0:
+        raise Error("FAIL: socketpair")
+    var a = Int(sv[0]) | (Int(sv[1]) << 8) | (Int(sv[2]) << 16) | (Int(sv[3]) << 24)
+    var b = Int(sv[4]) | (Int(sv[5]) << 8) | (Int(sv[6]) << 16) | (Int(sv[7]) << 24)
+    return (a, b)
+
+
+def _read_stream_frame(fd: Int) raises -> List[UInt8]:
+    var hdr = c_read_full(fd, 2)
+    var size = Int(hdr[0]) | (Int(hdr[1]) << 8)
+    return c_read_full(fd, size)
+
+
+def test_counter_wrap() raises:
+    """Счётчик на проводе — u16: после 0xFFFF идёт 0, а ответ с ctr=0 обязан
+    приниматься при полном Int-счётчике 65536/65535."""
+    check(wire_counter(0) == 0, "wire_counter: 0")
+    check(wire_counter(65535) == 65535, "wire_counter: 65535 без изменений")
+    check(wire_counter(65536) == 0, "wire_counter: 65536 -> 0 (u16)")
+    check(wire_counter(65537) == 1, "wire_counter: 65537 -> 1")
+    check(advance_counter(0) == 1, "advance_counter: 0 -> 1")
+    check(advance_counter(65534) == 65535, "advance_counter: 65534 -> 65535")
+    check(advance_counter(65535) == 0, "advance_counter: 65535 -> 0 (wrap)")
+    check(advance_counter(65536) == 1, "advance_counter: 65536 -> 1")
+
+    # Wire-кадры строятся из u16-формы.
+    var p = build_system_packet(65536, SYS_CREATE_DIR, bytes_of([65, 0]))
+    check(p[0] == 0 and p[1] == 0, "packet: ctr 65536 -> байты 0,0")
+    p = build_system_packet(65535, SYS_CREATE_DIR, bytes_of([65, 0]))
+    check(p[0] == 0xFF and p[1] == 0xFF, "packet: ctr 65535 -> байты ff,ff")
+    var d = build_direct_packet(65536, bytes_of([0xC0]), 10, 0)
+    check(d[0] == 0 and d[1] == 0, "direct-packet: ctr 65536 -> байты 0,0")
+
+    # Проверка ответа нормализует свой счётчик к u16; чужой ACK по-прежнему
+    # отклоняется (никакого «принять всё после wrap»).
+    var r0 = bytes_of([0x00, 0x00, 0x03, SYS_CREATE_DIR, 0x00])
+    var repl = check_system_reply(r0, 65536, SYS_CREATE_DIR)
+    expect_bytes(repl, bytes_of([0x00]), "system-reply: ctr=0 при counter=65536")
+    var failed = False
+    try:
+        _ = check_system_reply(r0, 65535, SYS_CREATE_DIR)
+    except:
+        failed = True
+    check(failed, "system-reply: ctr=0 всё ещё чужой для counter=65535")
+    var rff = bytes_of([0xFF, 0xFF, 0x03, SYS_CREATE_DIR, 0x00])
+    _ = check_system_reply(rff, 65535, SYS_CREATE_DIR)
+    print("ok: system-reply: ctr=65535 при counter=65535")
+    var d0 = bytes_of([0x00, 0x00, 0x02]) + bytes_of([1, 2, 3])
+    var g = check_direct_reply(d0, 65536, 3)
+    expect_bytes(g, bytes_of([1, 2, 3]), "direct-reply: ctr=0 при counter=65536")
+    failed = False
+    try:
+        _ = check_direct_reply(d0, 65535, 3)
+    except:
+        failed = True
+    check(failed, "direct-reply: ctr=0 всё ещё чужой для counter=65535")
+
+    # ACTUAL sys_cmd/direct_cmd: старт с 65535 -> на проводе 0, ответ с
+    # ctr=0 принимается (раньше валидный ACK отвергался после 65535 команд).
+    var fds = _socketpair_stream()
+    var fd = fds[0]
+    var peer = fds[1]
+    try:
+        c_write_all(peer, build_stream_frame(r0))
+        var res = sys_cmd(fd, 65535, SYS_CREATE_DIR, bytes_of([65, 0]), 1, TRANSPORT_STREAM)
+        check(res[0] == 0, "sys_cmd: 65535 -> возвращён ctr 0 (u16 wrap)")
+        expect_bytes(res[1], bytes_of([0x00]), "sys_cmd: ответ после wrap разобран")
+        var sent = _read_stream_frame(peer)
+        check(
+            Int(sent[0]) | (Int(sent[1]) << 8) == 0,
+            "sys_cmd: на проводе после 65535 счётчик 0",
+        )
+        check(sent[2] == UInt8(0x01) and sent[3] == UInt8(SYS_CREATE_DIR),
+              "sys_cmd: отправлена именно CREATE_DIR")
+    finally:
+        c_close(fd)
+        c_close(peer)
+
+    var fds2 = _socketpair_stream()
+    var fd2 = fds2[0]
+    var peer2 = fds2[1]
+    try:
+        c_write_all(peer2, build_stream_frame(d0))
+        var res2 = direct_cmd(fd2, 65535, bytes_of([0xC0, 0x08]), 3, 1, TRANSPORT_STREAM)
+        check(res2[0] == 0, "direct_cmd: 65535 -> возвращён ctr 0 (u16 wrap)")
+        expect_bytes(res2[1], bytes_of([1, 2, 3]), "direct_cmd: global-данные после wrap")
+        var sent2 = _read_stream_frame(peer2)
+        check(
+            Int(sent2[0]) | (Int(sent2[1]) << 8) == 0,
+            "direct_cmd: на проводе после 65535 счётчик 0",
+        )
+        check(sent2[2] == UInt8(0x00), "direct_cmd: тип direct на проводе")
+    finally:
+        c_close(fd2)
+        c_close(peer2)
+
+
+def test_create_dir_status() raises:
+    """CREATE_DIR: успех только SUCCESS (0x00) или FILE_EXISTS (0x07,
+    EV3Connection.cs:49). Прочие статусы и пустой ответ — ошибка."""
+    check(check_create_dir_status(bytes_of([0x00])) == 0, "CREATE_DIR: SUCCESS принят")
+    check(
+        check_create_dir_status(bytes_of([0x07])) == 0x07,
+        "CREATE_DIR: FILE_EXISTS 0x07 принят (каталог уже есть)",
+    )
+    for st in [0x05, 0x06, 0x08, 0xFF]:
+        var failed = False
+        try:
+            _ = check_create_dir_status(bytes_of([st]))
+        except:
+            failed = True
+        check(failed, "CREATE_DIR: статус " + String(st) + " отклоняется")
+    var empty = List[UInt8]()
+    var failed_empty = False
+    try:
+        _ = check_create_dir_status(empty)
+    except:
+        failed_empty = True
+    check(failed_empty, "CREATE_DIR: пустой ответ отклоняется")
+    # Эхо/тип/ctr проверяются раньше: битый кадр не доходит до политики.
+    var failed_echo = False
+    try:
+        _ = check_system_reply(
+            bytes_of([0x01, 0x00, 0x03, SYS_BEGIN_DOWNLOAD, 0x00]),
+            1, SYS_CREATE_DIR,
+        )
+    except:
+        failed_echo = True
+    check(failed_echo, "CREATE_DIR: чужое эхо отклоняется до статуса")
+
+
 def main() raises:
     test_system_packet()
     test_chunk_plan()
@@ -378,6 +522,8 @@ def main() raises:
     test_stream_transports()
     test_open_transport_fd_cleanup()
     test_retry_safety()
+    test_counter_wrap()
+    test_create_dir_status()
     print("FLASH_TEST OK")
 
 

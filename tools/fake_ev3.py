@@ -46,6 +46,7 @@ SYS_CREATE_DIR = 0x9B
 SYS_BEGIN = 0x92
 SYS_CONTINUE = 0x93
 STATUS_OK = 0x00
+STATUS_FILE_EXISTS = 0x07  # EV3Connection.cs:49, каталог уже существует
 
 
 def recv_exact(conn, n):
@@ -106,6 +107,11 @@ def main():
             "bad-echo",
             "truncated-begin",
             "bad-ctr",
+            "drop-continue-reply",
+            "create-bad-echo",
+            "create-truncated",
+            "create-drop-reply",
+            "create-exists",
         ],
     )
     args = ap.parse_args()
@@ -163,6 +169,23 @@ def main():
                 rep.add(event="syscmd", cmd=cmd, ctr=ctr)
                 if cmd == SYS_CREATE_DIR:
                     print(f"fake_ev3: CREATE_DIR ctr={ctr}", flush=True)
+                    if args.fail_mode == "create-bad-echo":
+                        send_packet(conn, sys_reply(ctr, SYS_BEGIN))
+                        rep.add(event="create-bad-echo-sent", ctr=ctr)
+                        continue
+                    if args.fail_mode == "create-truncated":
+                        # 4 байта: ctr + type + эхо, без статуса.
+                        send_packet(conn, struct.pack("<HBB", ctr, RPL_SYS, cmd))
+                        rep.add(event="create-truncated-sent", ctr=ctr)
+                        continue
+                    if args.fail_mode == "create-drop-reply":
+                        rep.add(event="create-dropped-reply", ctr=ctr)
+                        print("fake_ev3: CREATE_DIR принят, ответ потерян", flush=True)
+                        continue
+                    if args.fail_mode == "create-exists":
+                        rep.add(event="create-exists-sent", ctr=ctr)
+                        send_packet(conn, sys_reply(ctr, cmd, status=STATUS_FILE_EXISTS))
+                        continue
                     send_packet(conn, sys_reply(ctr, cmd))
                 elif cmd == SYS_BEGIN:
                     size = struct.unpack("<I", cargs[0:4])[0]
@@ -207,6 +230,12 @@ def main():
                         f"= {len(upload[2])}/{upload[1]}",
                         flush=True,
                     )
+                    if args.fail_mode == "drop-continue-reply":
+                        rep.add(event="dropped-continue-reply", ctr=ctr)
+                        print(
+                            "fake_ev3: CONTINUE принят, ответ потерян", flush=True
+                        )
+                        continue
                     send_packet(conn, sys_reply(ctr, cmd, payload=bytes([handle])))
                 else:
                     rep.add(event="unknown-syscmd", cmd=cmd, ctr=ctr)
