@@ -11,9 +11,13 @@
 Печатает COMPILER3_TEST OK при успехе.
 """
 
+from std.sys import size_of
+
 from bp.compiler3 import (
     compile_source_lines,
     fmt_number_literal,
+    strtod_endptr_bytes,
+    strtod_full,
     try_parse_float,
     utf16_length,
 )
@@ -139,8 +143,122 @@ def test_long_decimal_literals() raises:
     )
 
 
+def test_strtod_abi_and_full_consumption() raises:
+    # C ABI strtod: второй параметр — char** (pointer-sized out-параметр).
+    # Раньше под него давали Array[UInt8, 1], т.е. libc писала 8 байт в
+    # 1-байтовый буфер (LLVM IR: alloca [1 x i8]) — UB. Типовая проверка:
+    # ширина слота равна ширине указателя/Int.
+    check(
+        strtod_endptr_bytes() == size_of[Int](),
+        "strtod endptr: pointer-sized out-параметр",
+    )
+    check(strtod_endptr_bytes() == 8, "strtod endptr: 8 байт на x86_64/aarch64")
+
+    # Полный разбор строки: без NUL-терминатора или без проверки endptr
+    # длинная строка даёт None / мусор. Строка собрана конкатенацией —
+    # у String в Mojo нет гарантированного NUL, strtod_full копирует в свой буфер.
+    var digits400 = repeat("1", 400)
+    var full = strtod_full("0." + digits400)
+    check(Bool(full), "strtod: 400-значная дробь разобрана целиком")
+    check(
+        full.value() == 0.1111111111111111,
+        "strtod: корректное округление D9",
+    )
+    check(
+        Bool(strtod_full(repeat("1", 402) + ".0")),
+        "strtod: 402-значное целое разобрано (буфер с NUL)",
+    )
+
+    # Частичный разбор отвергается явно (endptr не дошёл до конца).
+    check(not Bool(strtod_full("1.25x")), "strtod: хвост 'x' — отказ")
+    check(not Bool(strtod_full("1,25")), "strtod: запятая — отказ (не C locale)")
+    check(not Bool(strtod_full("1.25 ")), "strtod: пробел в конце — отказ")
+    check(strtod_full("1.25").value() == 1.25, "strtod: '1.25' целиком")
+
+    # Через try_parse_float частичный разбор даёт обычную диагностику
+    # (не молчаливое другое число). Грамматика сканера (цифры/точка) сюда
+    # не пропускает такие строки, поэтому проверяем helper напрямую.
+    check(not try_parse_float("1,25").has, "try_parse_float: '1,25' не число")
+    check(try_parse_float("1.25").has, "try_parse_float: '1.25' число")
+
+
+def test_dotnet_number_format_boundaries() raises:
+    # C# NumberExpression.PreparedValue(): double.ToString(InvariantCulture)
+    # (.NET Core 3.0+, shortest round-trip) + ".0", если нет '.'.
+    # Проверено на оракуле InterpreterConsole.dll: fixed для exp -4..16,
+    # scientific для exp >= 17 и exp <= -5.
+    check(
+        fmt_number_literal(9007199254740992.0) == "9007199254740992.0",
+        "2^53: C# fixed, не 9.007199254740992E+15: "
+        + fmt_number_literal(9007199254740992.0),
+    )
+    check(
+        fmt_number_literal(100000000000000.0) == "100000000000000.0",
+        "1e14: fixed",
+    )
+    check(
+        fmt_number_literal(1000000000000000.0) == "1000000000000000.0",
+        "1e15: fixed",
+    )
+    check(
+        fmt_number_literal(10000000000000000.0) == "10000000000000000.0",
+        "1e16: fixed (граница снизу от scientific)",
+    )
+    check(
+        fmt_number_literal(100000000000000000.0) == "1E+17.0",
+        "1e17: scientific",
+    )
+    check(
+        fmt_number_literal(123456789012345678.0) == "1.2345678901234568E+17",
+        "17 значащих цифр, exp 17: scientific",
+    )
+    check(
+        fmt_number_literal(1234567890123456.0) == "1234567890123456.0",
+        "16 значащих цифр, exp 15: fixed",
+    )
+    check(fmt_number_literal(0.0001) == "0.0001", "exp -4: fixed")
+    check(fmt_number_literal(0.00001) == "1E-05.0", "exp -5: scientific")
+
+    # Negative counterparts (C#: -value через ToString).
+    check(
+        fmt_number_literal(-9007199254740992.0) == "-9007199254740992.0",
+        "-2^53: fixed с минусом",
+    )
+    check(
+        fmt_number_literal(-1000000000000000.0) == "-1000000000000000.0",
+        "-1e15: fixed",
+    )
+    check(
+        fmt_number_literal(-10000000000000000.0) == "-10000000000000000.0",
+        "-1e16: fixed",
+    )
+    check(
+        fmt_number_literal(-100000000000000000.0) == "-1E+17.0",
+        "-1e17: scientific",
+    )
+
+    # Round-trip: fixed-формы разбираются обратно в то же Float64.
+    var fixed_vals: List[Float64] = [
+        100000000000000.0,
+        1000000000000000.0,
+        10000000000000000.0,
+        9007199254740992.0,
+        1234567890123456.0,
+        -10000000000000000.0,
+    ]
+    for i in range(len(fixed_vals)):
+        var v = fixed_vals[i]
+        var s = fmt_number_literal(v)
+        check(
+            Float64(s) == v,
+            "round-trip: " + s + " == исходное Float64",
+        )
+
+
 def main() raises:
     test_utf16_length()
     test_string_length_limits()
     test_long_decimal_literals()
+    test_strtod_abi_and_full_consumption()
+    test_dotnet_number_format_boundaries()
     print("COMPILER3_TEST OK")

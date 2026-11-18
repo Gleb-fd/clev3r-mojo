@@ -92,6 +92,52 @@ def test_text_to_lines() raises:
     )
 
 
+def test_double_bom_once(tmp: String) raises:
+    # Файл: EF BB BF EF BB BF 61 0A 62 (два UTF-8 BOM, затем "a\nb").
+    # C# StreamReader/ReadAllLines снимает РОВНО один BOM, второй остаётся
+    # содержимым первой строки (U+FEFF), и компилятор такой исходник отвергает.
+    var double_bom = "\uFEFF\uFEFFa\nb"
+
+    # text_to_lines на сыром тексте снимает ровно один BOM.
+    check_lines(
+        text_to_lines(double_bom),
+        ["\uFEFFa", "b"],
+        "text_to_lines: два BOM -> второй сохранён в 1-й строке",
+    )
+
+    write_text(tmp, double_bom)
+    check_text(
+        read_text(tmp),
+        "\uFEFFa\nb",
+        "read_text: из двух BOM снят только первый",
+    )
+    var lines = read_lines(tmp)
+    check_lines(
+        lines,
+        ["\uFEFFa", "b"],
+        "read_lines: BOM снимается ровно один раз (не два)",
+    )
+    check(lines[0].byte_length() == 4, "read_lines: в 1-й строке 3 байта BOM + 'a'")
+    check(
+        Int(lines[0].unsafe_ptr().unsafe_offset(0)[]) == 0xEF
+        and Int(lines[0].unsafe_ptr().unsafe_offset(1)[]) == 0xBB
+        and Int(lines[0].unsafe_ptr().unsafe_offset(2)[]) == 0xBF,
+        "read_lines: второй BOM физически сохранён (EF BB BF)",
+    )
+
+    # Три BOM: снимается один, два остаются.
+    write_text(tmp, "\uFEFF\uFEFF\uFEFFa\nb")
+    check_lines(
+        read_lines(tmp),
+        ["\uFEFF\uFEFFa", "b"],
+        "read_lines: три BOM -> снят один",
+    )
+
+    # Один BOM в файле по-прежнему снимается полностью.
+    write_text(tmp, "\uFEFFa\nb")
+    check_lines(read_lines(tmp), ["a", "b"], "read_lines: один BOM снят")
+
+
 def test_read_text_and_read_lines(tmp: String) raises:
     write_text(tmp, "")
     check_text(read_text(tmp), "", "read_text: empty")
@@ -146,6 +192,7 @@ def main() raises:
     var tmp = "/tmp/bp_util_test_" + String(pid) + ".txt"
 
     test_text_to_lines()
+    test_double_bom_once(tmp)
     test_read_text_and_read_lines(tmp)
 
     _ = external_call["unlink", Int](tmp.unsafe_ptr())

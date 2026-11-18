@@ -20,20 +20,29 @@ def _strip_leading_bom(s: String) -> String:
     return s
 
 
+def _read_raw(path: String) raises -> String:
+    """Читает файл целиком без снятия BOM (сырой текст)."""
+    with open(path, "r") as f:
+        return f.read()
+
+
 def read_text(path: String) raises -> String:
     """Читает файл целиком, снимая ведущий UTF-8 BOM (C# StreamReader)."""
-    with open(path, "r") as f:
-        return _strip_leading_bom(f.read())
+    return _strip_leading_bom(_read_raw(path))
 
 
 def read_lines(path: String) raises -> List[String]:
     """Читает файл и разбивает на строки (без символов перевода строки).
 
     Соответствует C# File.ReadAllLines / StreamReader.ReadLine: снимает
-    ведущий UTF-8 BOM, разделители \\r\\n, \\n и \\r, завершающий перевод
-    строки не создаёт пустую строку в конце.
+    ведущий UTF-8 BOM ровно один раз, разделители \\r\\n, \\n и \\r,
+    завершающий перевод строки не создаёт пустую строку в конце.
+    Файл с ДВУМЯ BOM (EF BB BF EF BB BF ...) даёт первую строку с U+FEFF:
+    как StreamReader в C#, второй BOM остаётся содержимым.
     """
-    return text_to_lines(read_text(path))
+    # Сырой текст: text_to_lines сам снимает ровно один ведущий BOM.
+    # (read_text здесь нельзя — он бы снял BOM, а text_to_lines второй раз.)
+    return text_to_lines(_read_raw(path))
 
 
 def write_text(path: String, content: String) raises:

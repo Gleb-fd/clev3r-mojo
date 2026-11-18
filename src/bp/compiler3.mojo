@@ -15,6 +15,7 @@ LibraryEntry}.cs (Clev3r / EV3-Basic). Вход — строки развёрн�
 from std.collections import Dict
 from std.ffi import external_call
 from std.math import isinf
+from std.sys import size_of
 
 from bp.lexer import _byte_at, _bytes_to_string, _sub_bytes
 from bp.compiler3_resources import (
@@ -163,7 +164,11 @@ def to_upper_ascii(s: String) -> String:
 
 # ----------------------------------------------------------------------------
 # Форматирование double как .NET double.ToString(InvariantCulture)
-# (shortest round-trip; fixed при -5 < X < 15, иначе "1E+15"/"1E-06")
+# (shortest round-trip; fixed при -4 <= X <= 16, иначе "1E+17"/"1E-05")
+# Граница проверена на C#-оракуле (InterpreterConsole.dll, .NET Core 3.0+
+# shortest round-trip): 1e16 -> "10000000000000000", 1e17 -> "1E+17".
+# Старое условие X < 15 давало "9.007199254740992E+15" для 2^53 вместо
+# C# "9007199254740992".
 # ----------------------------------------------------------------------------
 
 
@@ -238,7 +243,7 @@ def fmt_double_dotnet(v: Float64) -> String:
     var out = String("")
     if neg:
         out = "-"
-    if -5 < x < 15:
+    if -5 < x < 17:
         if x >= 0:
             if digits.byte_length() > x + 1:
                 out = (
@@ -615,6 +620,41 @@ struct OptFloat(Copyable, Movable):
     var value: Float64
 
 
+def strtod_endptr_bytes() -> Int:
+    """Ширина C-выходного параметра strtod (char**), в байтах.
+
+    Контракт C ABI: strtod пишет в endptr машинный указатель (8 байт на
+    x86_64/aarch64), а не один байт. Из 1-байтного буфера под char**
+    получается запись за границы (UB).
+    """
+    return size_of[Pointer[mut=True, UInt8, MutUntrackedOrigin]]()
+
+
+def strtod_full(s: String) -> Optional[Float64]:
+    """strtod (libc, C locale) с типизированным endptr и проверкой
+    полного разбора строки.
+
+    Копия s кладётся в свой буфер с явным NUL: у String в Mojo нулевой
+    терминатор не гарантирован (строка, собранная конкатенацией, может
+    иметь непустой байт сразу за длиной). Возвращает None, если strtod
+    остановился раньше конца строки: частичный разбор (например, при
+    LC_NUMERIC с ',' вместо '.') не должен молча давать другое число.
+    """
+    var n = s.byte_length()
+    var raw = List[UInt8](length=n + 1, fill=UInt8(0))
+    for i in range(n):
+        raw[i] = _byte_at(s, i)
+    var base = raw.unsafe_ptr()
+    # endptr: типизированный pointer-sized слот (char** = 8 байт), не Array[UInt8,1].
+    # Инициализируем чужим указателем, чтобы не пересекаться с buf по origin.
+    var dummy = List[UInt8](length=1, fill=UInt8(0))
+    var endp = dummy.unsafe_ptr()
+    var value = external_call["strtod", Float64](base, Pointer(to=endp))
+    if Int(endp) - Int(base) != n:
+        return None
+    return value
+
+
 def try_parse_float(s: String) raises -> OptFloat:
     """double.TryParse(NumberStyles.Float, InvariantCulture) для лексем
     сканера: [0-9.]* (возможен один '.', без знака и экспоненты)."""
@@ -640,8 +680,13 @@ def try_parse_float(s: String) raises -> OptFloat:
     # Float64(String) в Mojo отвергает числа длиннее ~20 значащих цифр.
     # strtod из libc (C locale) даёт корректное IEEE-754 округление и совпадает
     # с .NET double.TryParse на длинных десятичных (D9: 400 цифр после точки).
-    var endbuf = Array[UInt8, 1](fill=0)
-    var value = external_call["strtod", Float64](norm.unsafe_ptr(), endbuf.unsafe_ptr())
+    # endptr — типизированный pointer-sized out-параметр, проверяем, что
+    # разобрана вся строка; setlocale здесь не вызывается.
+    var parsed = strtod_full(norm)
+    if not parsed:
+        # Явный отказ парсера вместо молчаливого частичного разбора.
+        return OptFloat(False, 0.0)
+    var value = parsed.value()
     if isinf(value):
         # .NET 6 TryParse отдаёт Infinity, и C# затем падает на INFINITY.0.
         # Осознанное отличие: ясная ошибка вместо битого листинга.
