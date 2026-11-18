@@ -1,0 +1,11 @@
+number Speed
+number[] History
+
+Function Move(in number p)
+  MotorA.SetPower(p)
+  History[0] = p
+EndFunction
+
+Function Stop()
+  MotorA.SetPower(0)
+EndFunction

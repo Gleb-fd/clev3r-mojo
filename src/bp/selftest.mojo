@@ -1,6 +1,14 @@
 """Самопроверка базовых модулей пакета (util, diag).
 
-Запуск: uv run mojo run src/bp/selftest.mojo
+Запуск из корня репозитория:
+  uv run mojo run src/bp/selftest.mojo
+
+Тест герметичный: читает известный fixture из репозитория
+(tools/tests/fixtures/selftest/Program1.bp) и пишет только в уникальный
+scratch-каталог. Переопределения:
+  BP_SELFTEST_FIXTURE — путь к fixture (по умолчанию repo-relative);
+  BP_SELFTEST_SCRATCH — существующий scratch-каталог (иначе создаётся
+                        уникальный /tmp/bp_selftest_<monotonic>).
 Печатает SELFTEST OK при успехе.
 """
 
@@ -15,15 +23,32 @@ from bp.util import (
     write_text,
 )
 from bp.diag import Diagnostics
-
+from std.os import getenv, mkdir
+from std.time import monotonic
 
 def check(cond: Bool, what: String) raises:
     if not cond:
         raise Error("FAIL: " + what)
 
 
+def fixture_path() -> String:
+    return getenv("BP_SELFTEST_FIXTURE", "tools/tests/fixtures/selftest/Program1.bp")
+
+
+def scratch_dir() raises -> String:
+    """Возвращает существующий уникальный каталог для записи."""
+    var env_scratch = getenv("BP_SELFTEST_SCRATCH", "")
+    if env_scratch != "":
+        return env_scratch
+    var path = "/tmp/bp_selftest_" + String(monotonic())
+    mkdir(path)
+    return path
+
+
 def test_util() raises:
-    var lines = read_lines("/home/ssssq/Windows/Program1.bp")
+    # Известный fixture репозитория (не пользовательский файл вне репо).
+    var path = fixture_path()
+    var lines = read_lines(path)
     check(len(lines) == 35, "Program1.bp: 35 строк, получено " + String(len(lines)))
     check(lines[0] == 'folder "prjs" "test123"', "первая строка")
     check(lines[10] == "Function map_data(in number n, out number data)", "строка 11")
@@ -36,8 +61,9 @@ def test_util() raises:
 
     check(lines_to_text(text_to_lines("a\nb\n")) == "a\nb\n", "roundtrip строк с завершающим \n")
 
-    write_text("/tmp/bp_selftest.txt", "hello")
-    check(read_lines("/tmp/bp_selftest.txt")[0] == "hello", "write/read")
+    var out = scratch_dir() + "/util_roundtrip.txt"
+    write_text(out, "hello")
+    check(read_lines(out)[0] == "hello", "write/read в уникальном scratch")
 
 
 def test_diag() raises:

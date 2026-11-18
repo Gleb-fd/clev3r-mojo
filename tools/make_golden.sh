@@ -1,52 +1,171 @@
 #!/usr/bin/env bash
-# Собирает эталонные артефакты (golden) для дифференциального тестирования
-# Mojo-компилятора против C#-оракула (Clev3r InterpreterConsole).
+# Пересборка эталонных артефактов (tests/golden) оракулом C# (Clev3r).
 #
-# Для каждого tests/corpus/**/*.bp оракул создаёт рядом папку ~<Name>/ с:
-#   ~<Name>.bp   — развёрнутый исходник (вывод интерпретатора, gv_/lv_/f_-имена)
-#   <Name>.lmsb  — ассемблер-листинг (текстовый, вход ассемблера)
-#   <Name>.rbf   — бинарный байткод EV3
-# Всё это складывается в tests/golden/<относительный путь>/.
+#   bash tools/make_golden.sh --oracle-root /path/to/Clev3r-1           # dry-run
+#   bash tools/make_golden.sh --oracle-root /path/to/Clev3r-1 --apply   # замена
+#
+# Безопасность:
+#   * по умолчанию НИЧЕГО не меняет в tests/golden: оракул отрабатывает в
+#     свежем уникальном staging-каталоге, результат сравнивается с текущим
+#     golden (read-only);
+#   * tests/golden заменяется только при явном --apply И только после того,
+#     как ВСЕ входы успешно собраны (fail=0, ok=expected); старый golden
+#     сохраняется в staging до успешной подмены и восстанавливается при сбое;
+#   * сгенерированные каталоги '~*' из корпуса в staging не копируются —
+#     входы берутся только из исходников;
+#   * известные входы, которые оракул не поддерживает, пропускаются по
+#     явному allowlist и не считаются успехом/провалом сверки.
+#
+# Переменные: BP_ORACLE_ROOT (альтернатива --oracle-root),
+#             BP_ORACLE_DLL  (по умолчанию .../InterpreterConsole.dll).
 set -uo pipefail
 
-SRC="/home/ssssq/Projects/clev3r_linux/Clev3r-1"
-ROOT="/home/ssssq/Projects/clev3r_mojo"
-DLL="$SRC/InterpreterConsole/bin/Release/net6.0/InterpreterConsole.dll"
-WORK="$ROOT/tests/.oracle_work"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$HERE/.." && pwd)"
+
+ORACLE_ROOT="${BP_ORACLE_ROOT:-}"
+DLL="${BP_ORACLE_DLL:-}"
+APPLY=0
+
+usage() {
+    cat >&2 <<EOF
+Использование: bash tools/make_golden.sh --oracle-root DIR [--apply]
+  --oracle-root DIR  корень C#-проекта Clev3r (или BP_ORACLE_ROOT)
+  --apply            заменить tests/golden после полного успеха (явное подтверждение)
+Без --apply выполняется только staging + сравнение, tests/golden не меняется.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --oracle-root) ORACLE_ROOT="${2:-}"; shift 2 ;;
+        --oracle-root=*) ORACLE_ROOT="${1#*=}"; shift ;;
+        --apply) APPLY=1; shift ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "неизвестный аргумент: $1" >&2; usage; exit 2 ;;
+    esac
+done
+
+[[ -n "$ORACLE_ROOT" ]] || { usage; exit 2; }
+[[ -n "$DLL" ]] || DLL="$ORACLE_ROOT/InterpreterConsole/bin/Release/net6.0/InterpreterConsole.dll"
+
+CORPUS="$ROOT/tests/corpus"
 GOLD="$ROOT/tests/golden"
-LOG="$ROOT/tests/golden_report.txt"
+REPORT="$ROOT/tests/golden_report.txt"
 
-[[ -f "$DLL" ]] || { echo "нет оракула: $DLL"; exit 1; }
+die() { echo "FAIL(make_golden): $*" >&2; exit 2; }
 
-rm -rf "$WORK" "$GOLD"
-mkdir -p "$WORK" "$GOLD"
-cp -r "$ROOT/tests/corpus/." "$WORK/"
+[[ -f "$DLL" ]] || die "нет оракула: $DLL"
+command -v dotnet >/dev/null 2>&1 || die "нет dotnet в PATH"
+[[ -d "$CORPUS" ]] || die "нет корпуса: $CORPUS"
 
+# Входы, которые C#-оракул не поддерживает (include/import с '..'):
+# golden для них не создаётся; Mojo обрабатывает их намеренно лучше.
+KNOWN_ORACLE_UNSUPPORTED=(
+    "New_Path_Examples/Program1.bp"
+)
+
+is_unsupported() {
+    local rel="$1" k
+    for k in "${KNOWN_ORACLE_UNSUPPORTED[@]}"; do
+        [[ "$k" == "$rel" ]] && return 0
+    done
+    return 1
+}
+
+STAGE="$(mktemp -d "${TMPDIR:-/tmp}/bp_golden_stage.XXXXXX")" || die "mktemp"
+trap 'rm -rf "$STAGE"' EXIT
+
+WORK="$STAGE/corpus"
+OUT="$STAGE/golden"
+mkdir -p "$WORK" "$OUT"
+
+if ! { (cd "$CORPUS" && find . -type d -name '~*' -prune -o -type f -print0 \
+        | tar --null -T - -cf -) | (cd "$WORK" && tar -xf -); }; then
+    die "не удалось скопировать корпус в staging"
+fi
+
+mapfile -d '' BPS < <(cd "$WORK" && find . -name '*.bp' -print0 | sort -z)
+(( ${#BPS[@]} > 0 )) || die "пустой корпус: $CORPUS"
+
+LOG="$STAGE/golden_report.txt"
 : > "$LOG"
-cd "$WORK" || exit 1
-ok=0; fail=0
-mapfile -d '' BPS < <(find . -name '*.bp' -print0 | sort -z)
+ok=0; fail=0; skipped=0
+cd "$WORK" || die "cd $WORK"
 for bp in "${BPS[@]}"; do
     rel="${bp#./}"
     name="$(basename "${bp%.bp}")"
     dir="$(dirname "$bp")"
-    out="$(DOTNET_ROLL_FORWARD=LatestMajor dotnet "$DLL" "$bp" "$(realpath "$dir")" 2>&1)"
-    if [[ -f "$dir/~$name/$name.rbf" ]]; then
-        ok=$((ok+1)); echo "OK   $rel ($(stat -c%s "$dir/~$name/$name.rbf") b)" >> "$LOG"
-    else
-        fail=$((fail+1)); echo "FAIL $rel" >> "$LOG"; echo "$out" >> "$LOG"; echo "---" >> "$LOG"
-    fi
-done < <(cd "$WORK" && find . -name '*.bp' -print0 | sort -z)
 
-# переносим все каталоги вывода в golden с сохранением структуры
+    if is_unsupported "$rel"; then
+        skipped=$((skipped + 1))
+        echo "SKIP(известный неподдерживаемый оракулом вход) $rel" | tee -a "$LOG"
+        continue
+    fi
+
+    out="$(DOTNET_ROLL_FORWARD=LatestMajor dotnet "$DLL" "$bp" "$(realpath "$dir")" 2>&1)"
+    if [[ -f "$dir/~$name/$name.rbf" && -f "$dir/~$name/$name.lmsb" ]]; then
+        ok=$((ok + 1))
+        echo "OK   $rel ($(stat -c%s "$dir/~$name/$name.rbf") b)" >> "$LOG"
+    else
+        fail=$((fail + 1))
+        echo "FAIL $rel" >> "$LOG"
+        echo "$out" >> "$LOG"
+        echo "---" >> "$LOG"
+        echo "FAIL $rel" >&2
+    fi
+done
+
+expected=$(( ${#BPS[@]} - skipped ))
+{
+    echo "ok=$ok fail=$fail skipped=$skipped inputs=${#BPS[@]}"
+    echo "rbf files: $(find "$WORK" -name '*.rbf' | wc -l)"
+    echo "lmsb files: $(find "$WORK" -name '*.lmsb' | wc -l)"
+} | tee -a "$LOG"
+
+if (( fail != 0 || ok != expected )); then
+    echo "FAIL(make_golden): staging неполный (ok=$ok expected=$expected fail=$fail); tests/golden не изменён" >&2
+    exit 1
+fi
+
+# Собираем только каталоги верхнего уровня '~<Имя>' (вложенные идут внутри них).
 while IFS= read -r -d '' d; do
     rel="${d#./}"
-    mkdir -p "$GOLD/$(dirname "$rel")"
-    cp -r "$d" "$GOLD/$rel"
-done < <(cd "$WORK" && find . -type d -name '~*' -print0)
+    parent="$(dirname "$rel")"
+    case "/$parent/" in
+        */~*/) continue ;;
+    esac
+    mkdir -p "$OUT/$parent"
+    cp -r "$d" "$OUT/$rel"
+done < <(cd "$WORK" && find . -type d -name '~*' -print0 | sort -z)
 
-{
-    echo "ok=$ok fail=$fail"
-    echo "rbf files: $(find "$GOLD" -name '*.rbf' | wc -l)"
-    echo "lmsb files: $(find "$GOLD" -name '*.lmsb' | wc -l)"
-} | tee -a "$LOG"
+staged=$(find "$OUT" -type d -name '~*' | wc -l)
+(( staged > 0 )) || die "staging не содержит каталогов '~*'"
+
+echo "staged golden dirs: $staged"
+
+if [[ -d "$GOLD" ]]; then
+    if diff -r -q "$OUT" "$GOLD" >"$STAGE/golden.diff" 2>&1; then
+        echo "staged golden идентичен текущему tests/golden"
+    else
+        echo "staged golden отличается от текущего tests/golden:"
+        head -20 "$STAGE/golden.diff" | sed 's/^/    /'
+    fi
+fi
+
+if (( APPLY == 0 )); then
+    echo "DRY-RUN: tests/golden не изменён (для замены нужен явный --apply)"
+    exit 0
+fi
+
+# --- явный --apply: подмена только после полного успеха ---
+BACKUP="$STAGE/golden.old"
+if [[ -d "$GOLD" ]]; then
+    mv "$GOLD" "$BACKUP" || die "не удалось отодвинуть старый golden"
+fi
+if ! mv "$OUT" "$GOLD"; then
+    [[ -d "$BACKUP" ]] && mv "$BACKUP" "$GOLD"
+    die "не удалось заменить tests/golden; старый golden восстановлен"
+fi
+cp "$LOG" "$REPORT" || echo "WARN: не удалось обновить $REPORT" >&2
+echo "APPLIED: tests/golden заменён (ok=$ok skipped=$skipped)"

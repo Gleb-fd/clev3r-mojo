@@ -1,0 +1,6 @@
+import "Module1"
+
+Module1.Speed = 50
+Module1.Move(Module1.Speed)
+Module1.Stop()
+LCD.Text(1, 0, 0, 1, "module ok")

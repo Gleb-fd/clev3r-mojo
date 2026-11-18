@@ -10,3 +10,7 @@ tools/bp_lmsb
 tools/bp_usb
 *.o
 zed-extension/target/
+tests/.verify_port_work/
+tests/.lmsb_work/
+tests/.selftest_work/
+tests/.buildcmd_work/
