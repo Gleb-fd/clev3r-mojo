@@ -13,12 +13,20 @@
     назад/вперёд и разность A:B (LMSObject.cs:150-197, 214-262), квирк
     `UI_DRAW TEXTBOX` = `84 81 20` (docs/04 §3.4).
 
+Дополнительно (дефект data-loss при сбое записи ОС): публикация .rbf атомарна
+через временный файл рядом с целью; успешная запись сохраняет права
+существующего .rbf, при любом сбое (включая read-only каталог) цель побайтно
+прежняя, свежий output не появляется, своих временных файлов не остаётся;
+symlink-цель явно отклоняется. RLIMIT_FSIZE/short-write сценарии — отдельно:
+`python3 tools/tests/test_asm_write.py`.
+
 Ожидаемые байты выведены из C#-оракула (LMSObject.cs/Assembler.cs) и docs/04,
 а не из текущей реализации. Фикстуры пишутся в уникальный каталог /tmp,
 репозиторий не пачкается.
 """
 
-from std.os import mkdir
+from std.ffi import external_call
+from std.os import mkdir, symlink, listdir
 from std.os.path import exists
 from std.time import perf_counter_ns
 
@@ -31,6 +39,9 @@ comptime FAILS_LIMIT = 40
 comptime HEX_DIGITS = "0123456789ABCDEF"
 
 comptime VALID_MINIMAL = "DATA32 G\nvmthread MAIN\n{\n    MOVE32_32 0 G\n}\n"
+
+comptime S_IFMT = 0xF000
+comptime S_IFLNK = 0xA000
 
 
 @fieldwise_init
@@ -469,6 +480,173 @@ def test_assemble_lmsb_output_path(mut r: Reporter, dir: String) raises:
 
 
 # ---------------------------------------------------------------------------
+# Атомарная публикация .rbf (дефект data-loss при сбое записи)
+# ---------------------------------------------------------------------------
+
+
+def cpath(s: String) -> List[UInt8]:
+    var out = List[UInt8]()
+    for i in range(s.byte_length()):
+        out.append(_byte_at(s, i))
+    out.append(UInt8(0))
+    return out^
+
+
+def lstat_mode(path: String) raises -> Int:
+    """st_mode (lstat, смещение 24 в struct stat x86-64 Linux); -1 — нет файла."""
+    var p = cpath(path)
+    var st = List[UInt8](length=256, fill=UInt8(0))
+    if Int(external_call["lstat", Int](p.unsafe_ptr(), st.unsafe_ptr())) != 0:
+        return -1
+    return (
+        Int(st[24])
+        | (Int(st[25]) << 8)
+        | (Int(st[26]) << 16)
+        | (Int(st[27]) << 24)
+    )
+
+
+def chmod_path(path: String, mode: Int) raises:
+    var p = cpath(path)
+    if Int(external_call["chmod", Int](p.unsafe_ptr(), mode)) != 0:
+        raise Error("test: chmod failed for " + path)
+
+
+def temp_leftovers(dir: String, base: String) raises -> List[String]:
+    """Имена оставшихся временных файлов публикации (*.tmp.*) в каталоге."""
+    var out = List[String]()
+    for name in listdir(dir):
+        var n = String(name)
+        if n.startswith("." + base + ".tmp."):
+            out.append(n)
+    return out^
+
+
+def test_atomic_publish_preserves_mode(mut r: Reporter, dir: String) raises:
+    """Успешная публикация сохраняет права существующего .rbf и не оставляет temp."""
+    var src = write_fixture(dir, "atomic_mode", VALID_MINIMAL)
+    var dst = dir + "/atomic_mode.rbf"
+    write_text(dst, "old image")
+    chmod_path(dst, 0o640)
+    var errors = assemble_file(src, dst)
+    if len(errors) > 0:
+        r.fail("atomic_mode: ошибки: " + String("\n    ").join(errors))
+        return
+    var mode = lstat_mode(dst)
+    if (mode & 0o7777) != 0o640:
+        r.fail("atomic_mode: права " + String(mode & 0o7777) + " != 640")
+    if len(temp_leftovers(dir, "atomic_mode.rbf")) != 0:
+        r.fail("atomic_mode: остался временный файл")
+
+
+def test_atomic_publish_fresh_permissions(mut r: Reporter, dir: String) raises:
+    """Новая цель получает обычные права (0666 с umask), не 0600 от mkstemp."""
+    var src = write_fixture(dir, "atomic_fresh", VALID_MINIMAL)
+    var dst = dir + "/atomic_fresh.rbf"
+    if exists(dst):
+        r.fail("atomic_fresh: scratch уже содержит " + dst)
+        return
+    var errors = assemble_file(src, dst)
+    if len(errors) > 0:
+        r.fail("atomic_fresh: ошибки: " + String("\n    ").join(errors))
+        return
+    var mode = lstat_mode(dst)
+    if (mode & S_IFMT) != 0x8000:
+        r.fail("atomic_fresh: не обычный файл, mode=" + String(mode))
+    # mkstemp даёт 0600; публикация должна выставить 0666&~umask (минимум rw для owner).
+    if (mode & 0o600) != 0o600:
+        r.fail("atomic_fresh: нет прав rw для владельца, mode=" + String(mode & 0o7777))
+    if len(temp_leftovers(dir, "atomic_fresh.rbf")) != 0:
+        r.fail("atomic_fresh: остался временный файл")
+
+
+def test_symlink_target_refused(mut r: Reporter, dir: String) raises:
+    """Символическая ссылка как цель: явная ошибка, ссылка и её цель не тронуты.
+
+    Явное отличие от прежнего open(path, "w") (шёл по ссылке): атомарный rename
+    заменил бы саму ссылку, поэтому случай честно отклоняется.
+    """
+    var src = write_fixture(dir, "symlink_out", VALID_MINIMAL)
+    var real = dir + "/symlink_real.rbf"
+    var link = dir + "/symlink_out.rbf"
+    write_text(real, "REAL TARGET CONTENT")
+    var before = hex_of(read_bytes(real))
+    var tgt = cpath(real)
+    var lnk = cpath(link)
+    if Int(external_call["symlink", Int](tgt.unsafe_ptr(), lnk.unsafe_ptr())) != 0:
+        r.fail("symlink_out: не удалось создать ссылку в scratch")
+        return
+
+    var errors = assemble_file(src, link)
+    if len(errors) == 0:
+        r.fail("symlink_out: ожидалась ошибка для symlink-цели")
+    elif errors[0].find("symbolic link") == -1:
+        r.fail("symlink_out: неожиданный текст ошибки: " + errors[0])
+    if lstat_mode(link) & S_IFMT != S_IFLNK:
+        r.fail("symlink_out: ссылка заменена/удалена")
+    if hex_of(read_bytes(real)) != before:
+        r.fail("symlink_out: содержимое цели ссылки изменено")
+    if len(temp_leftovers(dir, "symlink_out.rbf")) != 0:
+        r.fail("symlink_out: остался временный файл")
+
+
+def test_failed_write_preserves_existing(mut r: Reporter, dir: String) raises:
+    """Сбой записи временного файла (каталог только для чтения) не трогает цель.
+
+    Это in-process симуляция OS-сбоя: mkstemp в каталоге без права записи
+    падает до rename, существующий .rbf обязан остаться побайтно прежним.
+    Полноценные RLIMIT_FSIZE/short-write сценарии — tools/tests/test_asm_write.py.
+    """
+    var sub = dir + "/ro_dir"
+    mkdir(sub)
+    var src = write_fixture(sub, "ro_out", VALID_MINIMAL)
+    var dst = sub + "/ro_out.rbf"
+    write_text(dst, "SENTINEL: must survive write failure")
+    var before = hex_of(read_bytes(dst))
+    chmod_path(sub, 0o500)  # r-x: создать новый файл нельзя
+    var errors = List[String]()
+    try:
+        errors = assemble_file(src, dst)
+    except e:
+        chmod_path(sub, 0o700)
+        r.fail("ro_out: assemble_file бросил наружу: " + String(e))
+        return
+    chmod_path(sub, 0o700)
+    if len(errors) == 0:
+        r.fail("ro_out: ожидалась ошибка записи в read-only каталог")
+    if not exists(dst):
+        r.fail("ro_out: существующий .rbf удалён при сбое записи")
+        return
+    if hex_of(read_bytes(dst)) != before:
+        r.fail("ro_out: существующий .rbf изменён при сбое записи")
+    if len(temp_leftovers(sub, "ro_out.rbf")) != 0:
+        r.fail("ro_out: остался временный файл после сбоя")
+
+
+def test_failed_write_creates_no_output(mut r: Reporter, dir: String) raises:
+    """Сбой записи при отсутствующей цели не создаёт свежий .rbf."""
+    var sub = dir + "/ro_dir2"
+    mkdir(sub)
+    var src = write_fixture(sub, "ro_new", VALID_MINIMAL)
+    var dst = sub + "/ro_new.rbf"
+    chmod_path(sub, 0o500)
+    var errors = List[String]()
+    try:
+        errors = assemble_file(src, dst)
+    except e:
+        chmod_path(sub, 0o700)
+        r.fail("ro_new: assemble_file бросил наружу: " + String(e))
+        return
+    chmod_path(sub, 0o700)
+    if len(errors) == 0:
+        r.fail("ro_new: ожидалась ошибка записи в read-only каталог")
+    if exists(dst):
+        r.fail("ro_new: .rbf создан при сбое записи")
+    if len(temp_leftovers(sub, "ro_new.rbf")) != 0:
+        r.fail("ro_new: остался временный файл после сбоя")
+
+
+# ---------------------------------------------------------------------------
 # Точка входа
 # ---------------------------------------------------------------------------
 
@@ -487,6 +665,11 @@ def main() raises:
     test_label_forms(r, work)
     test_textbox_quirk(r, work)
     test_assemble_lmsb_output_path(r, work)
+    test_atomic_publish_preserves_mode(r, work)
+    test_atomic_publish_fresh_permissions(r, work)
+    test_symlink_target_refused(r, work)
+    test_failed_write_preserves_existing(r, work)
+    test_failed_write_creates_no_output(r, work)
 
     if r.count() > 0:
         print("ASM TESTS FAILED: " + String(r.count()) + " ошибок")
