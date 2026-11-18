@@ -3,31 +3,37 @@
 from std.sys import argv
 
 
+def _byte_at(s: String, i: Int) -> UInt8:
+    return s.unsafe_ptr().unsafe_offset(i)[]
+
+
+def _strip_leading_bom(s: String) -> String:
+    """Снимает UTF-8 BOM только в начале потока (как StreamReader/ReadAllLines)."""
+    if s.byte_length() < 3:
+        return s
+    if (
+        Int(_byte_at(s, 0)) == 0xEF
+        and Int(_byte_at(s, 1)) == 0xBB
+        and Int(_byte_at(s, 2)) == 0xBF
+    ):
+        return String(s[byte=3 : s.byte_length()])
+    return s
+
+
 def read_text(path: String) raises -> String:
-    """Читает файл целиком."""
+    """Читает файл целиком, снимая ведущий UTF-8 BOM (C# StreamReader)."""
     with open(path, "r") as f:
-        return f.read()
+        return _strip_leading_bom(f.read())
 
 
 def read_lines(path: String) raises -> List[String]:
     """Читает файл и разбивает на строки (без символов перевода строки).
 
-    Соответствует C# File.ReadAllLines / StreamReader.ReadLine: разделители
-    \\n и \\r\\n, завершающий перевод строки не создаёт пустую строку в конце.
+    Соответствует C# File.ReadAllLines / StreamReader.ReadLine: снимает
+    ведущий UTF-8 BOM, разделители \\r\\n, \\n и \\r, завершающий перевод
+    строки не создаёт пустую строку в конце.
     """
-    var content = read_text(path)
-    var raw = content.split("\n")
-    var out = List[String]()
-    for i in range(len(raw)):
-        var s = String(raw[i])
-        if s.endswith("\r"):
-            var t = String(s[byte=0 : s.byte_length() - 1])
-            s = t
-        out.append(s^)
-    # если файл заканчивается переводом строки, split даёт лишний пустой элемент
-    if len(out) > 0 and raw[len(raw) - 1].byte_length() == 0:
-        _ = out.pop()
-    return out^
+    return text_to_lines(read_text(path))
 
 
 def write_text(path: String, content: String) raises:
@@ -37,17 +43,26 @@ def write_text(path: String, content: String) raises:
 
 
 def text_to_lines(content: String) -> List[String]:
-    """Разбивает текст на строки так же, как read_lines."""
-    var raw = content.split("\n")
+    """Разбивает текст на строки так же, как read_lines.
+
+    Разделители \\r\\n, \\n и \\r (File.ReadAllLines); ведущий UTF-8 BOM
+    снимается, embedded U+FEFF остаётся содержимым строки.
+    """
+    var text = _strip_leading_bom(content)
+    var n = text.byte_length()
     var out = List[String]()
-    for i in range(len(raw)):
-        var s = String(raw[i])
-        if s.endswith("\r"):
-            var t = String(s[byte=0 : s.byte_length() - 1])
-            s = t
-        out.append(s^)
-    if len(out) > 0 and raw[len(raw) - 1].byte_length() == 0:
-        _ = out.pop()
+    var start = 0
+    var i = 0
+    while i < n:
+        var b = Int(_byte_at(text, i))
+        if b == 10 or b == 13:
+            out.append(String(text[byte=start:i]))
+            if b == 13 and i + 1 < n and Int(_byte_at(text, i + 1)) == 10:
+                i += 1
+            start = i + 1
+        i += 1
+    if start < n:
+        out.append(String(text[byte=start:n]))
     return out^
 
 

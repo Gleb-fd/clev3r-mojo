@@ -13,6 +13,8 @@ LibraryEntry}.cs (Clev3r / EV3-Basic). Вход — строки развёрн�
 """
 
 from std.collections import Dict
+from std.ffi import external_call
+from std.math import isinf
 
 from bp.lexer import _byte_at, _bytes_to_string, _sub_bytes
 from bp.compiler3_resources import (
@@ -271,6 +273,20 @@ def fmt_number_literal(v: Float64) -> String:
     if s.find(".") == -1:
         return s + ".0"
     return s
+
+
+def utf16_length(s: String) -> Int:
+    """Длина строки в UTF-16 code units (C# string.Length).
+
+    BMP-символ — 1 unit, supplementary (эмодзи и т.п.) — 2 units.
+    """
+    var units = 0
+    for cp in s.codepoints():
+        if Int(cp) > 0xFFFF:
+            units += 2
+        else:
+            units += 1
+    return units
 
 
 def escape_string_lit(v: String) -> String:
@@ -621,7 +637,16 @@ def try_parse_float(s: String) raises -> OptFloat:
         norm = String(_sub_bytes(s, 0, s.byte_length() - 1))
     if norm.find(".") == -1:
         norm = norm + ".0"
-    return OptFloat(True, Float64(norm))
+    # Float64(String) в Mojo отвергает числа длиннее ~20 значащих цифр.
+    # strtod из libc (C locale) даёт корректное IEEE-754 округление и совпадает
+    # с .NET double.TryParse на длинных десятичных (D9: 400 цифр после точки).
+    var endbuf = Array[UInt8, 1](fill=0)
+    var value = external_call["strtod", Float64](norm.unsafe_ptr(), endbuf.unsafe_ptr())
+    if isinf(value):
+        # .NET 6 TryParse отдаёт Infinity, и C# затем падает на INFINITY.0.
+        # Осознанное отличие: ясная ошибка вместо битого листинга.
+        raise Error("Number is out of range for Float64: " + s)
+    return OptFloat(True, value)
 
 
 # ============================================================================
@@ -2495,7 +2520,7 @@ struct Compiler:
             return e
         elif self.s.next_type == SYM_STRING:
             var val = self.s.next_content
-            if val.byte_length() > 251:
+            if utf16_length(val) > 251:
                 self.s.throw_parse_error("Text is longer than 251 letters")
             self.s.get_sym()
             return self.ex_atomic(ET_TEXT, "'" + escape_string_lit(val) + "'")
