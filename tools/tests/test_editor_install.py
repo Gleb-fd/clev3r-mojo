@@ -9,6 +9,7 @@ Zed data dir, so the real user data and the repository are never modified.
 import json
 import os
 import shutil
+import stat
 import subprocess
 import tempfile
 import tomllib
@@ -58,6 +59,16 @@ class InstallerTest(unittest.TestCase):
         with open(data_dir / "extensions" / "index.json", encoding="utf-8") as f:
             return json.load(f)
 
+    def lock_lib_version(self) -> str:
+        with open(EXT / "Cargo.lock", "rb") as f:
+            lock = tomllib.load(f)
+        versions = [
+            p["version"] for p in lock["package"]
+            if isinstance(p, dict) and p.get("name") == "zed_extension_api"
+        ]
+        self.assertEqual(len(versions), 1)
+        return versions[0]
+
     def write_index(self, data_dir: Path, data):
         ext_dir = data_dir / "extensions"
         ext_dir.mkdir(parents=True, exist_ok=True)
@@ -104,6 +115,174 @@ class InstallerTest(unittest.TestCase):
         got = data["extensions"]["basic_plus"]["manifest"]["grammars"]["basic_plus"]["rev"]
         self.assertEqual(got, manifest_rev())
         self.assertEqual(got, "76081a635ac2fa0dbb6d0727c043a996a599603d")
+
+    def test_lib_version_is_complete_semver_from_cargo_lock(self):
+        r = self.run_installer()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        man = self.read_index(self.xdg / "zed")["extensions"]["basic_plus"]["manifest"]
+        version = man["lib"]["version"]
+        # Cargo.toml contains the range "0.7"; the index needs the resolved
+        # full version (ABI of the prebuilt wasm), not the range.
+        self.assertRegex(version, r"^\d+\.\d+\.\d+$")
+        self.assertEqual(version, self.lock_lib_version())
+        self.assertEqual(version, "0.7.0")
+
+    def test_existing_index_mode_is_preserved(self):
+        data_dir = self.xdg / "zed"
+        ext_dir = data_dir / "extensions"
+        ext_dir.mkdir(parents=True)
+        index = ext_dir / "index.json"
+        for mode in (0o644, 0o640, 0o600):
+            with self.subTest(mode=oct(mode)):
+                index.write_text(json.dumps({"extensions": {}}), encoding="utf-8")
+                os.chmod(index, mode)
+                r = self.run_installer()
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertEqual(
+                    stat.S_IMODE(index.stat().st_mode), mode,
+                    f"index mode changed to {oct(stat.S_IMODE(index.stat().st_mode))}",
+                )
+
+    def test_new_index_mode_matches_umask(self):
+        old_umask = os.umask(0o027)
+        self.addCleanup(os.umask, old_umask)
+        r = self.run_installer()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        index = self.xdg / "zed/extensions/index.json"
+        expected = 0o666 & ~0o027
+        self.assertEqual(stat.S_IMODE(index.stat().st_mode), expected)
+
+    def test_absolute_symlinked_index_preserved(self):
+        data_dir = self.xdg / "zed"
+        ext_dir = data_dir / "extensions"
+        ext_dir.mkdir(parents=True)
+        managed = self.tmp / "managed"
+        managed.mkdir()
+        target = managed / "index.json"
+        target.write_text(
+            json.dumps({"extensions": {"other_ext": {"manifest": {"id": "other_ext"}}}}),
+            encoding="utf-8",
+        )
+        os.chmod(target, 0o640)
+        link = ext_dir / "index.json"
+        link.symlink_to(target)
+        r = self.run_installer()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue(link.is_symlink())
+        self.assertEqual(os.readlink(link), str(target))
+        self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o640)
+        data = json.loads(target.read_text(encoding="utf-8"))
+        self.assertIn("other_ext", data["extensions"])
+        self.assertIn("basic_plus", data["extensions"])
+        self.assertTrue((managed / "index.json.bak").is_file())
+        self.assertEqual(list(ext_dir.glob(".index.*")), [])
+
+    def test_relative_symlinked_index_preserved(self):
+        data_dir = self.xdg / "zed"
+        ext_dir = data_dir / "extensions"
+        ext_dir.mkdir(parents=True)
+        managed = self.tmp / "managed"
+        managed.mkdir()
+        target = managed / "index.json"
+        target.write_text(json.dumps({"extensions": {}}), encoding="utf-8")
+        os.chmod(target, 0o600)
+        link = ext_dir / "index.json"
+        rel_target = os.path.relpath(target, ext_dir)
+        link.symlink_to(rel_target)
+        r = self.run_installer()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue(link.is_symlink())
+        self.assertEqual(os.readlink(link), rel_target)
+        self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o600)
+        self.assertIn("basic_plus", json.loads(target.read_text())["extensions"])
+
+    def test_chained_symlinked_index_preserved(self):
+        data_dir = self.xdg / "zed"
+        ext_dir = data_dir / "extensions"
+        ext_dir.mkdir(parents=True)
+        managed = self.tmp / "managed"
+        managed.mkdir()
+        target = managed / "index.json"
+        target.write_text(json.dumps({"extensions": {}}), encoding="utf-8")
+        os.chmod(target, 0o644)
+        links = self.tmp / "links"
+        links.mkdir()
+        middle = links / "middle.json"
+        middle_rel = os.path.relpath(target, links)
+        middle.symlink_to(middle_rel)
+        link = ext_dir / "index.json"
+        link_rel = os.path.relpath(middle, ext_dir)
+        link.symlink_to(link_rel)
+        r = self.run_installer()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue(link.is_symlink())
+        self.assertTrue(middle.is_symlink())
+        self.assertEqual(os.readlink(link), link_rel)
+        self.assertEqual(os.readlink(middle), middle_rel)
+        self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o644)
+        self.assertIn("basic_plus", json.loads(target.read_text())["extensions"])
+
+    def test_malformed_symlinked_target_fails_safe(self):
+        data_dir = self.xdg / "zed"
+        ext_dir = data_dir / "extensions"
+        ext_dir.mkdir(parents=True)
+        managed = self.tmp / "managed"
+        managed.mkdir()
+        target = managed / "index.json"
+        corrupt = '{"extensions": {"other_ext": '
+        target.write_text(corrupt, encoding="utf-8")
+        link = ext_dir / "index.json"
+        link.symlink_to(target)
+        r = self.run_installer()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(target.read_text(encoding="utf-8"), corrupt)
+        self.assertTrue(link.is_symlink())
+        self.assertEqual(os.readlink(link), str(target))
+        self.assertFalse((managed / "index.json.bak").exists())
+        self.assertFalse((data_dir / "extensions/installed/basic_plus").exists())
+
+    def test_dangling_index_symlink_fails_clear(self):
+        data_dir = self.xdg / "zed"
+        ext_dir = data_dir / "extensions"
+        ext_dir.mkdir(parents=True)
+        missing = self.tmp / "missing" / "index.json"
+        link = ext_dir / "index.json"
+        link.symlink_to(missing)
+        r = self.run_installer()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("symlink", r.stderr)
+        self.assertTrue(link.is_symlink())
+        self.assertFalse(missing.exists())
+        self.assertFalse((data_dir / "extensions/installed/basic_plus").exists())
+
+    def test_missing_rev_fails_before_installed_copy(self):
+        data_dir = self.xdg / "zed"
+        ext_dir = data_dir / "extensions"
+        ext_dir.mkdir(parents=True)
+        marker = {"extensions": {"keep_me": {"manifest": {"id": "keep_me"}}}}
+        index = ext_dir / "index.json"
+        index.write_text(json.dumps(marker), encoding="utf-8")
+        src = self.tmp / "src"
+        shutil.copytree(EXT, src / "zed-extension")
+        manifest = src / "zed-extension/extension.toml"
+        manifest.write_text(
+            "\n".join(
+                line for line in manifest.read_text(encoding="utf-8").splitlines()
+                if not line.strip().startswith("rev =")
+            ) + "\n",
+            encoding="utf-8",
+        )
+        (src / "tools").mkdir()
+        copied = src / "tools/install_zed_extension.sh"
+        shutil.copy(SCRIPT, copied)
+        r = subprocess.run(
+            ["bash", str(copied)], env=self.env(), cwd=str(self.tmp),
+            capture_output=True, text=True, timeout=120,
+        )
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("rev", r.stderr)
+        self.assertEqual(json.loads(index.read_text(encoding="utf-8")), marker)
+        self.assertFalse((data_dir / "extensions/installed/basic_plus").exists())
 
     def test_language_metadata_matches_manifest(self):
         r = self.run_installer()
