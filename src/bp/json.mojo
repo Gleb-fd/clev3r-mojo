@@ -32,7 +32,10 @@ struct JNode(Copyable, Movable):
     kind — JK_*; raw — STR: декодированный текст, NUM: литерал как в
     исходнике (для точного эха id), BOOL: "true"/"false", иначе "";
     key — имя члена объекта (декодированное), "" для элементов массива;
-    kid — первый ребёнок или -1; sib — следующий сосед или -1.
+    kid — первый ребёнок или -1; sib — следующий сосед или -1;
+    tail — последний ребёнок или -1 (для контейнера: kid == -1 <=> tail == -1;
+    у непустого tail.sib == -1). Хвост держится при каждой привязке ребёнка,
+    поэтому append ребёнка O(1) вместо обхода всего списка детей.
     """
 
     var kind: Int
@@ -40,6 +43,7 @@ struct JNode(Copyable, Movable):
     var key: String
     var kid: Int
     var sib: Int
+    var tail: Int
 
 
 struct JDoc(Copyable, Movable):
@@ -54,7 +58,7 @@ struct JDoc(Copyable, Movable):
 
     def add(mut self, kind: Int, raw: String, key: String) -> Int:
         var i = len(self.nodes)
-        self.nodes.append(JNode(kind, raw, key, -1, -1))
+        self.nodes.append(JNode(kind, raw, key, -1, -1, -1))
         return i
 
 
@@ -326,13 +330,18 @@ def _parse_value(
 
 
 def _link_child(mut doc: JDoc, parent: Int, child: Int):
-    if doc.nodes[parent].kid == -1:
+    """Дописать child в конец детей parent, сохранив порядок kid/sib.
+
+    Хвост контейнера (tail) делает это O(1): обход детей от kid до конца
+    каждую вставку давал квадратичный разбор широких массивов/объектов.
+    """
+    var last = doc.nodes[parent].tail
+    doc.nodes[child].sib = -1
+    if last == -1:
         doc.nodes[parent].kid = child
     else:
-        var s = doc.nodes[parent].kid
-        while doc.nodes[s].sib != -1:
-            s = doc.nodes[s].sib
-        doc.nodes[s].sib = child
+        doc.nodes[last].sib = child
+    doc.nodes[parent].tail = child
 
 
 def _parse_object(
@@ -349,7 +358,10 @@ def _parse_object(
         if p.eof() or Int(_jbyte_at(p.text, p.pos)) != 34:
             raise Error("json: в объекте ожидалась строка-ключ")
         var ks = p.pos
-        # ключ парсим как строку, но забираем только текст (узел выкидываем)
+        # ключ парсим как строку, но забираем только текст (узел выкидываем).
+        # pop снимает ТОЛЬКО что добавленный и ещё никуда не привязанный
+        # узел, поэтому индексы kid/sib/tail уже разобранных контейнеров
+        # не меняются.
         var tmp = _parse_string(p, doc, "")
         var k = doc.nodes[tmp].raw
         _ = doc.nodes.pop()

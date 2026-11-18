@@ -221,6 +221,13 @@ def _hex_digit(c: Int) -> Int:
     return -1
 
 
+def _hex_char(d: Int) -> Int:
+    """ASCII-код hex-цифры 0..15 (верхний регистр, как urllib.parse.quote)."""
+    if d < 10:
+        return 48 + d
+    return 65 + d - 10
+
+
 def _bytes_to_string(raw: List[UInt8]) -> String:
     if len(raw) == 0:
         return String("")
@@ -316,7 +323,11 @@ def _percent_decode(s: String) raises -> String:
 
 
 def _path_to_uri(path: String) -> String:
-    """Абсолютный путь -> file URI с percent-кодированием не-ASCII/спецсимволов."""
+    """Абсолютный путь -> file URI с percent-кодированием не-ASCII/спецсимволов.
+
+    Набор «как есть» (alnum + -._~/ ) совпадает с Path.as_uri()/urllib quote:
+    всё остальное, включая UTF-8 байты, пробел, '%' и '#', кодируется %XX.
+    """
     var out = List[UInt8]()
     var prefix = "file://"
     for i in range(prefix.byte_length()):
@@ -336,13 +347,11 @@ def _path_to_uri(path: String) -> String:
         if keep:
             out.append(UInt8(b))
         else:
+            # Оба ниббла — через _hex_char: 48 + hi верно только для 0..9,
+            # для 0xA..0xF давало ':'..'?' вместо 'A'..'F'.
             out.append(UInt8(37))
-            out.append(UInt8(48 + (b >> 4)))
-            var lo = b & 15
-            if lo < 10:
-                out.append(UInt8(48 + lo))
-            else:
-                out.append(UInt8(65 + lo - 10))
+            out.append(UInt8(_hex_char(b >> 4)))
+            out.append(UInt8(_hex_char(b & 15)))
     return _bytes_to_string(out)
 
 

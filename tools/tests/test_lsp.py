@@ -416,6 +416,42 @@ def test_external_include_diagnostic_anchor_and_related():
     c.stop_cleanly()
 
 
+def test_related_info_uri_byte_exact_unicode_space_percent_hash():
+    """relatedInformation.uri == Path.resolve().as_uri() байт-в-байт.
+
+    Каталог И имя include-файла содержат пробел, кириллицу, é, emoji, '%'
+    и '#'. Прежний генератор percent-escape кодировал старший ниббл как
+    '0'+hi: для байтов 0xA0..0xFF выходило '%:0'..'%?0' вместо '%A0'..'%FF',
+    то есть битый/чужой URI. Ожидание берётся из stdlib Path.as_uri(),
+    а не из нашей же реализации.
+    """
+    ws = workspace("uriinfo")
+    proj = ws / "проект с пробелом %# é 😀"
+    proj.mkdir()
+    name = "Bad %# é 😀"
+    bad = proj / (name + ".bpi")
+    write(bad, 'LCD.Text(1,0,0,1,"x"\n')
+    main = proj / "M ain.bp"
+    write(main, "disk\n")
+    c = Client(tmpdir_for(ws))
+    c.send_json({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
+    c.expect()
+    d = open_doc(c, main, 'include "' + name + '"\n')
+    assert codes(d) == [1001], d
+    want = bad.resolve().as_uri()
+    rel = d[0].get("relatedInformation")
+    assert rel and len(rel) == 1, rel
+    got = rel[0]["location"]["uri"]
+    assert got == want, (got, want)
+    # Ни сырых '%25'/'%23'-двойников, ни не-ASCII байтов в URI быть не может.
+    assert "%25" in want and "%23" in want, want
+    assert got.isascii(), got
+    assert rel[0]["location"]["range"]["start"] == {"line": 0, "character": 0}
+    assert str(bad) in message_of(d[0]), d[0]
+    assert main.read_text(encoding="utf-8") == "disk\n"
+    c.stop_cleanly()
+
+
 def test_file_uri_percent_localhost_and_remote_reject():
     ws = workspace("uri")
     proj = ws / "проект с пробелом"
@@ -653,6 +689,92 @@ def test_json_depth_and_parse_error_continue():
     c.stop_cleanly()
 
 
+def _wide_array_body(kb: int, method: str = "x/json/wide") -> bytes:
+    """Тело кадра ~kb KiB: широкий массив коротких чисел в params."""
+    head = (
+        '{"jsonrpc":"2.0","id":7,"method":"' + method + '","params":{"a":['
+    ).encode()
+    tail = b"]}}"
+    n = max(1, (kb * 1024 - len(head) - len(tail)) // 2)
+    return head + b"0," * (n - 1) + b"0" + tail
+
+
+def _wide_object_body(kb: int) -> bytes:
+    """Тело кадра ~kb KiB: широкий объект с уникальными ключами."""
+    head = b'{"jsonrpc":"2.0","id":7,"method":"x/json/wide","params":{"b":{'
+    tail = b"}}}"
+    budget = max(1, kb * 1024 - len(head) - len(tail))
+    parts = []
+    used = 0
+    i = 0
+    while True:
+        item = ('"k%d":%d' % (i, i)).encode()
+        add = len(item) + (1 if parts else 0)
+        if used + add > budget:
+            break
+        parts.append(item)
+        used += add
+        i += 1
+    assert parts, kb
+    return head + b",".join(parts) + tail
+
+
+def test_wide_nested_json_frames_linear_not_quadratic():
+    """Разбор широкого JSON линеен: 200 KB массив укладывается в секунды.
+
+    Регрессия b580bcc: _link_child обходил ВСЕХ детей контейнера на каждой
+    вставке -> O(n^2); 20/40/80/160 KB давали 0.31/1.23/5.42/>10 c, и
+    ~200 KB не укладывались в таймаут. Порог 5 c — на порядки выше времени
+    линейного разбора (~0.03 c) и заведомо ниже квадратичного, поэтому это
+    не микробенчмарк, а функциональный предел.
+    """
+    ws = workspace("widejson")
+    c = Client(tmpdir_for(ws))
+    try:
+        big = _wide_array_body(200)
+        assert 195 * 1024 <= len(big) <= 201 * 1024, len(big)
+        t0 = time.monotonic()
+        c.send_frame(big)
+        r = c.expect()
+        wide_sec = time.monotonic() - t0
+        assert r["id"] == 7 and r["error"]["code"] == -32601, r
+        assert wide_sec < 5.0, ("квадратичный разбор?", wide_sec)
+        obj = _wide_object_body(120)
+        t0 = time.monotonic()
+        c.send_frame(obj)
+        r = c.expect()
+        obj_sec = time.monotonic() - t0
+        assert r["id"] == 7 and r["error"]["code"] == -32601, r
+        assert obj_sec < 5.0, ("квадратичный разбор объекта?", obj_sec)
+        print(
+            f"  wide array {len(big)}B={wide_sec:.3f}s "
+            f"object {len(obj)}B={obj_sec:.3f}s"
+        )
+        # вложенное чередование + дубликаты ключей + escapes/unicode:
+        # дубликат "jsonrpc" -> берётся первый, id/строка декодируются точно.
+        nested = (
+            b'{"jsonrpc":"2.0","jsonrpc":"1.0","id":"\xd0\xb8\xf0\x9f\x98\x80",'
+            b'"method":"x/json/nested","params":{"n":'
+            + b"[" * 100
+            + b'{"k":"\\u044e\\u00e9\\ud83d\\ude00","dup":1,"dup":2}'
+            + b"]" * 100
+            + b"}}"
+        )
+        c.send_frame(nested)
+        r = c.expect()
+        assert r["id"] == "и😀" and r["error"]["code"] == -32601, r
+        # сервер жив и после широких кадров
+        c.send_json({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
+        assert c.expect()["id"] == 1
+        c.stop_cleanly()
+    finally:
+        # на провале не ждём shutdown посреди квадратичного разбора
+        if c.proc.poll() is None:
+            c.kill()
+    tmp = TEST_ROOT / "widejson" / "tmp"
+    assert list(tmp.iterdir()) == []
+
+
 def test_valid_unicode_frames_byte_accurate():
     ws = workspace("unicode")
     c = Client(tmpdir_for(ws))
@@ -694,6 +816,7 @@ TESTS = [
     test_id_types_and_errors,
     test_native_flow_include_module_hover_completion_change,
     test_external_include_diagnostic_anchor_and_related,
+    test_related_info_uri_byte_exact_unicode_space_percent_hash,
     test_file_uri_percent_localhost_and_remote_reject,
     test_stage3_expanded_line_is_anchor_zero,
     test_analysis_failure_replaces_clean_and_no_internal_path,
@@ -701,6 +824,7 @@ TESTS = [
     test_private_tmp_two_processes_and_sentinel,
     test_framing_fail_closed,
     test_json_depth_and_parse_error_continue,
+    test_wide_nested_json_frames_linear_not_quadratic,
     test_valid_unicode_frames_byte_accurate,
     test_startup_tmp_failure_is_explicit,
 ]
