@@ -72,6 +72,8 @@ def main() raises:
         bad += 1
 
     if bad != 0:
+        # Печатаем FAIL и завершаемся ненулевым кодом (как lexer_test/selftest),
+        # иначе verify_all, судящий только по rc, видит ложный зелёный.
         print("BUILDCMD SELFTEST FAIL: " + String(bad))
-    else:
-        print("BUILDCMD SELFTEST OK")
+        raise Error("BUILDCMD SELFTEST FAIL: " + String(bad))
+    print("BUILDCMD SELFTEST OK")

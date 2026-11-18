@@ -11,6 +11,9 @@
 #   * tests/golden заменяется только при явном --apply И только после того,
 #     как ВСЕ входы успешно собраны (fail=0, ok=expected); старый golden
 #     сохраняется в staging до успешной подмены и восстанавливается при сбое;
+#   * успех входа = код возврата оракула 0 И все три выхода (~<Имя>.bp,
+#     <Имя>.lmsb, <Имя>.rbf) на месте: артефакты при rc!=0 или частичный
+#     вывод не считаются успехом и блокируют --apply (старый golden цел);
 #   * сгенерированные каталоги '~*' из корпуса в staging не копируются —
 #     входы берутся только из исходников;
 #   * известные входы, которые оракул не поддерживает, пропускаются по
@@ -104,15 +107,26 @@ for bp in "${BPS[@]}"; do
     fi
 
     out="$(DOTNET_ROLL_FORWARD=LatestMajor dotnet "$DLL" "$bp" "$(realpath "$dir")" 2>&1)"
-    if [[ -f "$dir/~$name/$name.rbf" && -f "$dir/~$name/$name.lmsb" ]]; then
+    rc=$?
+    outdir="$dir/~$name"
+    # Полный успешный вход: оракул вернул 0 И создал все три артефакта.
+    # Наличие .lmsb/.rbf само по себе не доказывает успех (оракул мог упасть,
+    # оставив частичный/старый вывод).
+    missing=()
+    for required in "$outdir/~$name.bp" "$outdir/$name.lmsb" "$outdir/$name.rbf"; do
+        [[ -f "$required" ]] || missing+=("$(basename "$required")")
+    done
+    if (( rc == 0 )) && (( ${#missing[@]} == 0 )); then
         ok=$((ok + 1))
-        echo "OK   $rel ($(stat -c%s "$dir/~$name/$name.rbf") b)" >> "$LOG"
+        echo "OK   $rel ($(stat -c%s "$outdir/$name.rbf") b)" >> "$LOG"
     else
         fail=$((fail + 1))
-        echo "FAIL $rel" >> "$LOG"
+        reason="oracle rc=$rc"
+        (( ${#missing[@]} > 0 )) && reason="$reason, нет выходов: ${missing[*]}"
+        echo "FAIL $rel ($reason)" >> "$LOG"
         echo "$out" >> "$LOG"
         echo "---" >> "$LOG"
-        echo "FAIL $rel" >&2
+        echo "FAIL $rel ($reason)" >&2
     fi
 done
 
@@ -124,7 +138,7 @@ expected=$(( ${#BPS[@]} - skipped ))
 } | tee -a "$LOG"
 
 if (( fail != 0 || ok != expected )); then
-    echo "FAIL(make_golden): staging неполный (ok=$ok expected=$expected fail=$fail); tests/golden не изменён" >&2
+    echo "FAIL(make_golden): staging неполный (ok=$ok expected=$expected fail=$fail); tests/golden не изменён (публикация отменена)" >&2
     exit 1
 fi
 

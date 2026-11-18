@@ -20,6 +20,7 @@
 #
 # Переопределения для негативных тестов (tools/tests/test_port.py):
 #   DIFFTEST_BP, DIFFTEST_CORPUS, DIFFTEST_GOLD
+# BP_BINARY (уникальный scratch из verify_all) задаёт CLI, если DIFFTEST_BP нет.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,7 +32,7 @@ case "$STAGE" in
     *) echo "неизвестная стадия: $STAGE (expand|lmsb|rbf)" >&2; exit 2 ;;
 esac
 
-BP="${DIFFTEST_BP:-$ROOT/tools/bp}"
+BP="${DIFFTEST_BP:-${BP_BINARY:-$ROOT/tools/bp}}"
 CORPUS="${DIFFTEST_CORPUS:-$ROOT/tests/corpus}"
 GOLD="${DIFFTEST_GOLD:-$ROOT/tests/golden}"
 

@@ -10,7 +10,11 @@
   * каждый запуск — в свежем scratch, выходы удаляются перед каждым прогоном;
   * ошибки сравниваются по стадии/коду ошибки, а не по локализованному тексту
     (в порте отсутствует ErrorsCodeList, тексты принципиально другие);
-  * намеренные отличия (empty -> "\\n", '..' в include) зафиксированы явно;
+  * намеренные отличия зафиксированы явно: exact-empty источник (актуальный
+    порт и оракул дают b"", старый baseline — документированный b"\n") и
+    '..' в include; любой другой mismatch empty — FAIL, а не запись в отчёт;
+  * self-comparison запрещён: baseline обязан быть отдельным путём от current
+    (совпадение sha при разных путях — законная копия, помечается явно);
   * benchmark: warmup>=3, measure>=9, perf_counter вокруг subprocess.run,
     median/min/max + сырые samples, сравнение выходов вне timed-секции;
   * baseline для сравнительного режима обязателен: BP_BASELINE_BINARY или
@@ -233,6 +237,87 @@ def resolve_baseline(root):
     )
 
 
+def classify_empty_parity(current_bp, oracle_bp, baseline_bp, current_out, oracle_out, baseline_out):
+    """Классифицирует empty-source: current обязан совпасть с оракулом побайтово.
+
+    current_bp/oracle_bp/baseline_bp — содержимое ~empty.bp (bytes|None).
+    current_out/oracle_out/baseline_out — словари относительный путь -> sha256
+    артефактов стадии (включая ~empty.bp).
+
+    Политика (узкая, без широкого allowlist):
+      * current vs oracle: verdict "equal" только если оба источника ровно b""
+        И lmsb/rbf совпадают И выходы непустые; иначе "mismatch" (FAIL);
+      * baseline vs current: "equal" — выходы идентичны;
+        "known-prefix-newline-only-baseline" — ТОЛЬКО документированное
+        PRE-fix отличие baseline (~empty.bp == b"\\n") при current b"" и
+        равных lmsb/rbf; любой другой mismatch — "mismatch" (FAIL).
+
+    Возвращает dict с verdict'ами, сырыми sha256 по стадиям и классификацией.
+    """
+    def digest(data):
+        return None if data is None else sha256_bytes(data)
+
+    lmsb_equal = (
+        current_out.get("empty.lmsb") is not None
+        and current_out.get("empty.lmsb") == oracle_out.get("empty.lmsb")
+    )
+    rbf_equal = (
+        current_out.get("empty.rbf") is not None
+        and current_out.get("empty.rbf") == oracle_out.get("empty.rbf")
+    )
+    current_ok = (
+        current_bp == b""
+        and oracle_bp == b""
+        and lmsb_equal
+        and rbf_equal
+        and bool(current_out)
+        and bool(oracle_out)
+    )
+
+    baseline_same_outputs = bool(baseline_out) and baseline_out == current_out
+    baseline_known_newline = (
+        baseline_bp == b"\n"
+        and current_bp == b""
+        and current_out.get("empty.lmsb") is not None
+        and current_out.get("empty.lmsb") == baseline_out.get("empty.lmsb")
+        and current_out.get("empty.rbf") is not None
+        and current_out.get("empty.rbf") == baseline_out.get("empty.rbf")
+    )
+    if baseline_same_outputs:
+        baseline_verdict = "equal"
+        baseline_class = "identical-outputs"
+    elif baseline_known_newline:
+        baseline_verdict = "known-prefix-newline-only-baseline"
+        baseline_class = "documented-pre-fix-baseline-newline"
+    else:
+        baseline_verdict = "mismatch"
+        baseline_class = "unexpected-baseline-current-mismatch"
+
+    return {
+        "current_vs_oracle": {
+            "verdict": "equal" if current_ok else "mismatch",
+            "current_bp": repr(current_bp),
+            "oracle_bp": repr(oracle_bp),
+            "lmsb_equal": lmsb_equal,
+            "rbf_equal": rbf_equal,
+        },
+        "baseline_vs_current": {
+            "verdict": baseline_verdict,
+            "classification": baseline_class,
+            "baseline_bp": repr(baseline_bp),
+            "current_bp": repr(current_bp),
+        },
+        "raw_sha256": {
+            "current_bp": digest(current_bp),
+            "oracle_bp": digest(oracle_bp),
+            "baseline_bp": digest(baseline_bp),
+            "current_outputs": dict(current_out),
+            "oracle_outputs": dict(oracle_out),
+            "baseline_outputs": dict(baseline_out),
+        },
+    }
+
+
 def compare_exact(a, b):
     keys = sorted(set(a) | set(b))
     diffs = []
@@ -278,7 +363,24 @@ def main(argv=None):
             raise SetupError(f"нет текущего CLI: {bp}")
         if not dll.is_file():
             raise SetupError(f"нет оракула: {dll}")
+        # Обязательные входы ворот: без них нельзя молча деградировать до PASS.
+        if not (root / "tests" / "corpus").is_dir():
+            raise SetupError(f"нет каталога корпуса: {root / 'tests' / 'corpus'}")
+        if not fixtures.is_dir():
+            raise SetupError(
+                f"нет fixtures для точечных тестов: {fixtures} "
+                "(нужен tools/tests/fixtures из репозитория)"
+            )
         baseline, baseline_sha, baseline_src = resolve_baseline(root)
+        # Self-comparison — не независимый baseline, а mutable alias: запрещён.
+        if pathlib.Path(baseline).resolve() == bp.resolve():
+            raise SetupError(
+                f"BP_BASELINE_BINARY совпадает с текущим CLI ({bp}); "
+                "сравнение baseline/current с самим собой запрещено — укажите "
+                "сохранённый PRE-fix baseline"
+            )
+        current_sha = sha256(bp)
+        same_content = current_sha == baseline_sha
         dll_sha = sha256(dll)
         if dll_sha != KNOWN_ORACLE_DLL_SHA and os.environ.get("BP_ALLOW_ORACLE_SHA_MISMATCH") != "1":
             raise SetupError(
@@ -294,11 +396,17 @@ def main(argv=None):
             DOTNET_NOLOGO="1",
         )
         report["setup"] = {
-            "current_bp": {"path": str(bp), "sha256": sha256(bp)},
+            "current_bp": {"path": str(bp), "sha256": current_sha},
             "baseline_bp": {
                 "path": str(baseline),
                 "sha256": baseline_sha,
                 "source": baseline_src,
+                # Разные пути с одинаковым sha — законная копия, но это НЕ
+                # независимый источник: помечаем явно, хеш не требуем разным.
+                "identity": (
+                    "identical-content-copy" if same_content else "distinct-content"
+                ),
+                "independent_source_claimed": not same_content,
             },
             "oracle_dll": {"path": str(dll), "sha256": dll_sha},
             "versions": {
@@ -565,37 +673,52 @@ def main(argv=None):
             runs[tool] = {"cmd": cmd, "rc": cp.returncode, "outputs": out}
 
         if label == "empty":
-            m_bp = (dirs["current"] / "~empty" / "~empty.bp")
-            o_bp = (dirs["oracle"] / "~empty" / "~empty.bp")
-            mb = m_bp.read_bytes() if m_bp.is_file() else None
-            ob = o_bp.read_bytes() if o_bp.is_file() else None
-            lmsb_equal = (
-                runs["current"]["outputs"].get("empty.lmsb")
-                == runs["oracle"]["outputs"].get("empty.lmsb")
+            # Актуальный контракт: exact-empty source — current И оракул отдают
+            # ровно b"" (t3). Старый baseline с b"\n" — отдельный documented
+            # PRE-fix case; он допускается ТОЛЬКО для baseline, не для current.
+            def read_empty_bp(tool):
+                p = dirs[tool] / "~empty" / "~empty.bp"
+                return p.read_bytes() if p.is_file() else None
+
+            mb = read_empty_bp("current")
+            ob = read_empty_bp("oracle")
+            bb = read_empty_bp("baseline")
+            empty_cls = classify_empty_parity(
+                mb, ob, bb,
+                runs["current"]["outputs"],
+                runs["oracle"]["outputs"],
+                runs["baseline"]["outputs"],
             )
-            rbf_equal = (
-                runs["current"]["outputs"].get("empty.rbf")
-                == runs["oracle"]["outputs"].get("empty.rbf")
-            )
-            intentional = mb == b"\n" and ob == b"" and lmsb_equal and rbf_equal
-            parity["current_vs_oracle"] = {
-                "verdict": "intentional" if intentional else "mismatch",
-                "detail": f"~empty.bp current={mb!r} oracle={ob!r} "
-                          f"lmsb_equal={lmsb_equal} rbf_equal={rbf_equal}",
-            }
-            if not intentional:
-                fail(
+            parity["current_vs_oracle"] = empty_cls["current_vs_oracle"]
+            parity["baseline_vs_current"] = empty_cls["baseline_vs_current"]
+            parity["raw_sha256"] = empty_cls["raw_sha256"]
+            if empty_cls["current_vs_oracle"]["verdict"] == "equal":
+                ok(
                     f"bench/{label}/parity",
-                    "намеренное отличие empty-source изменилось: "
-                    f"current={mb!r} oracle={ob!r} lmsb_equal={lmsb_equal} rbf_equal={rbf_equal}",
+                    "exact empty: current == oracle == b''; lmsb/rbf равны",
                 )
             else:
-                ok(f"bench/{label}/parity", "intentional: ~empty.bp '\\n' vs ''; lmsb/rbf равны")
-            parity["baseline_vs_current"] = {
-                "verdict": "equal"
-                if runs["baseline"]["outputs"] == runs["current"]["outputs"]
-                else "mismatch"
-            }
+                fail(
+                    f"bench/{label}/parity",
+                    "current не совпал с оракулом на exact-empty (ожидалось "
+                    "b''/b'' + равные lmsb/rbf): "
+                    + json.dumps(empty_cls["current_vs_oracle"], ensure_ascii=False),
+                )
+            baseline_verdict = empty_cls["baseline_vs_current"]["verdict"]
+            if baseline_verdict == "equal":
+                ok(f"bench/{label}/baseline-parity", "baseline == current")
+            elif baseline_verdict == "known-prefix-newline-only-baseline":
+                ok(
+                    f"bench/{label}/baseline-parity",
+                    "documented PRE-fix baseline: ~empty.bp=b'\\n' vs current b''; "
+                    "lmsb/rbf равны (разрешено только baseline)",
+                )
+            else:
+                fail(
+                    f"bench/{label}/baseline-parity",
+                    "недокументированное расхождение baseline/current на empty: "
+                    + json.dumps(empty_cls["baseline_vs_current"], ensure_ascii=False),
+                )
         else:
             d_co = compare_exact(runs["current"]["outputs"], runs["oracle"]["outputs"])
             d_bc = compare_exact(runs["baseline"]["outputs"], runs["current"]["outputs"])
@@ -695,5 +818,21 @@ def main(argv=None):
     return 0 if not failures else 1
 
 
+def cli(argv=None):
+    """Точка входа: setup-ошибки — понятная диагностика и код 2, не traceback."""
+    try:
+        return main(argv)
+    except SetupError as e:
+        print(f"SETUP FAIL: {e}", file=sys.stderr)
+        return 2
+    except (FileNotFoundError, NotADirectoryError, PermissionError) as e:
+        print(
+            f"SETUP FAIL: {type(e).__name__}: {e} "
+            "(нужны tests/corpus и tools/tests/fixtures в --root)",
+            file=sys.stderr,
+        )
+        return 2
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(cli())

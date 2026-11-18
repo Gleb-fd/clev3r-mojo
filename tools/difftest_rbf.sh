@@ -7,7 +7,7 @@
 #   3) код возврата и наличие .rbf проверяются, затем cmp с эталоном <Имя>.rbf.
 #
 # Использование: bash tools/difftest_rbf.sh [-v]
-# Переменные: DIFFTEST_BP (приоритет), BP_BIN — путь к CLI;
+# Переменные: DIFFTEST_BP (приоритет), BP_BINARY/BP_BIN — путь к CLI;
 #             DIFFTEST_GOLD — каталог эталонов.
 # Коды выхода: 0 — все pass; 1 — есть fail; 2 — окружение/пустой набор.
 set -uo pipefail
@@ -15,7 +15,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 
-BP="${DIFFTEST_BP:-${BP_BIN:-$ROOT/tools/bp}}"
+BP="${DIFFTEST_BP:-${BP_BINARY:-${BP_BIN:-$ROOT/tools/bp}}}"
 GOLD="${DIFFTEST_GOLD:-$ROOT/tests/golden}"
 VERBOSE="${1:-}"
 
