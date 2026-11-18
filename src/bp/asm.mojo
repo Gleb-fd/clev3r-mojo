@@ -25,6 +25,8 @@
 
 from std.collections import Dict
 from std.ffi import external_call
+from std.os import lstat
+from std.os.path import exists, islink
 
 from bp.lexer import _byte_at, _bytes_to_string, _sub_bytes
 from bp.util import read_lines, dir_name, base_name, strip_ext
@@ -847,25 +849,41 @@ def write32(mut stream: List[UInt8], value: Int):
 # обычный файл, поэтому такой случай теперь явно отклоняется ошибкой, а не
 # молча уничтожает чужую ссылку. Это осознанное отличие (см. asm_test).
 #
+# Существующая цель только для чтения: прежний open(path, "w") падал с EACCES,
+# а rename молча заменил бы файл. Поэтому перед публикацией проверяется ФАКТИЧЕСКАЯ
+# возможность записи через access(2) W_OK (учитывает uid/gid, ACL и режим
+# монтирования, а не только биты режима); для root access(W_OK) тоже успешен,
+# как и прежний open, то есть root-семантика сохраняется. Проверка — не замена
+# проверки прав при rename: она лишь возвращает прежний отказ вместо подмены.
+#
+# Метаданные: сохраняется только режим (fchmod). Владелец/группа, ACL, xattrs и
+# жёсткие ссылки НЕ переносятся (rename подменяет inode) — это осознанная цена
+# атомарности, отдельного ACL-сервиса не делаем.
+#
+# ABI: все C-функции вызываются через std.ffi.external_call с ТОЧНЫМИ типами
+# (int -> Int32, ssize_t -> Int, off_t -> Int, mode_t -> UInt32), чтобы
+# отрицательные коды не превращались в положительные; st_mode берётся из
+# stdlib std.os.lstat (без ручных смещений struct stat). Никаких raw syscall и
+# предположений о разрядности/архитектуре: Linux и macOS, x86-64 и ARM.
+#
 # Гарантия — только «нет потери/усечения старого файла при ошибке записи».
 # Долговечность при отключении питания (fsync каталога) НЕ обещается: файл
 # fsync'ится перед rename, чтобы ошибки отложенной записи всплыли до
 # публикации, но каталог не синхронизируется.
 # ----------------------------------------------------------------------------
 
-comptime S_IFMT = 0xF000
-comptime S_IFLNK = 0xA000
-
-# libc close(3) нельзя брать как extern: сигнатура конфликтует с внутренним
-# close stdlib (та же проблема, что в flash.mojo). Поэтому close — через
-# единственный символ `syscall` в форме (nr, a, ptr, b) -> Int (x86-64 Linux,
-# close = 3; лишние аргументы variadic-функция игнорирует).
-comptime SYS_NR_CLOSE = 3
+# access(2): проверка права записи (POSIX; значение одинаково в Linux и macOS).
+comptime W_OK = 2
 
 
-def _close_fd(fd: Int) -> Int:
-    var dummy = List[UInt8](length=8, fill=UInt8(0))
-    return Int(external_call["syscall", Int](SYS_NR_CLOSE, fd, dummy.unsafe_ptr(), 0))
+def _close_fd(fd: Int32) -> Int32:
+    """libc close(3) с точной C-сигнатурой `int close(int fd)`.
+
+    Типизированный external_call по имени `close` разрешается линкером в libc
+    (в stdlib Mojo символ называется иначе), поэтому raw syscall не нужен и
+    архитектурных констант (SYS_NR_*) больше нет.
+    """
+    return external_call["close", Int32](fd)
 
 
 def _path_cstr(path: String) -> List[UInt8]:
@@ -878,30 +896,28 @@ def _path_cstr(path: String) -> List[UInt8]:
 
 
 def _lstat_mode(path: String) raises -> Int:
-    """st_mode через lstat (без перехода по символической ссылке); -1 — нет файла.
-
-    struct stat x86-64 Linux: st_mode — u32 по смещению 24.
-    """
-    var p = _path_cstr(path)
-    var st = List[UInt8](length=256, fill=UInt8(0))
-    if Int(external_call["lstat", Int](p.unsafe_ptr(), st.unsafe_ptr())) != 0:
+    """st_mode (lstat, без перехода по ссылке) через stdlib; -1 — файла нет."""
+    try:
+        return Int(lstat(path).st_mode)
+    except e:
         return -1
-    return (
-        Int(st[24])
-        | (Int(st[25]) << 8)
-        | (Int(st[26]) << 16)
-        | (Int(st[27]) << 24)
-    )
 
 
-def _write_fd_all(fd: Int, raw: List[UInt8]) raises:
+def _is_writable(path: String) raises -> Bool:
+    """access(2) W_OK: реальная проверка права записи (не эвристика по битам)."""
+    var p = _path_cstr(path)
+    return Int(external_call["access", Int32](p.unsafe_ptr(), Int32(W_OK))) == 0
+
+
+def _write_fd_all(fd: Int32, raw: List[UInt8]) raises:
     """Записать ВСЕ байты в fd; короткая запись/ошибка — raise (без молчания)."""
     var done = 0
     var total = len(raw)
     while done < total:
         var chunk = total - done
         var p = raw.unsafe_ptr().unsafe_offset(done)
-        var rc = Int(external_call["pwrite64", Int](fd, p, chunk, done))
+        # pwrite(2): ssize_t (знаковый, машинной ширины) -> Int; off_t -> Int.
+        var rc = Int(external_call["pwrite", Int](fd, p, UInt(chunk), done))
         if rc < 0:
             raise Error("write failed for temporary .rbf")
         if rc == 0:
@@ -912,10 +928,10 @@ def _write_fd_all(fd: Int, raw: List[UInt8]) raises:
 def write_bytes_file(path: String, raw: List[UInt8]) raises:
     """Атомарно опубликовать сырые байты в path; при сбое старый файл цел.
 
-    Порядок: mkstemp в каталоге цели -> pwrite64 всех байт -> fchmod (права
-    существующей цели, иначе 0666&~umask) -> fsync -> close -> rename на цель.
-    Любой сбой до rename удаляет временный файл; целевой путь не открывается
-    на запись и не усекается никогда.
+    Порядок: проверка цели -> mkstemp в каталоге цели -> pwrite всех байт ->
+    fchmod (права существующей цели, иначе 0666&~umask) -> fsync -> close ->
+    rename на цель. Любой сбой до rename удаляет временный файл; целевой путь
+    не открывается на запись и не усекается никогда.
     """
     var d = dir_name(path)
     var dir = d
@@ -924,19 +940,25 @@ def write_bytes_file(path: String, raw: List[UInt8]) raises:
     var base = base_name(path)
 
     # Политика для существующей цели: ссылку не подменяем молча.
+    if islink(path):
+        raise Error("refusing to atomically replace symbolic link output: " + path)
     var target_mode = -1
-    var mode = _lstat_mode(path)
-    if mode >= 0:
-        if (mode & S_IFMT) == S_IFLNK:
-            raise Error(
-                "refusing to atomically replace symbolic link output: " + path
-            )
-        target_mode = mode & 0o7777
+    if exists(path):
+        # Прежний open(path, "w") на файле без права записи падал с EACCES;
+        # атомарный rename заменил бы его молча, поэтому отказываем заранее.
+        if not _is_writable(path):
+            raise Error("cannot write .rbf: output file is not writable: " + path)
+        var mode = _lstat_mode(path)
+        if mode >= 0:
+            target_mode = mode & 0o7777
 
     # Временный файл в каталоге цели (rename в пределах одной ФС).
     var tmpl_path = dir + "/." + base + ".tmp.XXXXXX"
     var tmpl = _path_cstr(tmpl_path)
-    var fd = Int(external_call["mkstemp", Int](tmpl.unsafe_ptr()))
+    # mkstemp(3) возвращает C int: при ошибке код ОТРИЦАТЕЛЬНЫЙ (-1). Чтение
+    # C int как 64-битного Int превращает -1 в 4294967295 и делает проверку
+    # `fd < 0` мёртвой, поэтому тип возврата строго Int32.
+    var fd = external_call["mkstemp", Int32](tmpl.unsafe_ptr())
     if fd < 0:
         raise Error("cannot create temporary file in " + dir)
 
@@ -948,25 +970,25 @@ def write_bytes_file(path: String, raw: List[UInt8]) raises:
         var want_mode = target_mode
         if want_mode < 0:
             # Новая цель: как у прежнего open(path, "w") — 0666 с учётом umask.
-            var old_umask = Int(external_call["umask", Int](0))
-            _ = external_call["umask", Int](old_umask)
-            want_mode = 0o666 & ~old_umask
-        if Int(external_call["fchmod", Int](fd, want_mode)) != 0:
+            var old_umask = external_call["umask", UInt32](UInt32(0))
+            _ = external_call["umask", UInt32](old_umask)
+            want_mode = 0o666 & ~Int(old_umask)
+        if external_call["fchmod", Int32](fd, UInt32(want_mode)) != 0:
             raise Error("cannot set permissions on temporary .rbf")
-        if Int(external_call["fsync", Int](fd)) != 0:
+        if external_call["fsync", Int32](fd) != 0:
             raise Error("fsync failed on temporary .rbf")
         if _close_fd(fd) != 0:
             closed = True
             raise Error("close failed on temporary .rbf")
         closed = True
 
-        if Int(external_call["rename", Int](tmpl.unsafe_ptr(), target.unsafe_ptr())) != 0:
+        if external_call["rename", Int32](tmpl.unsafe_ptr(), target.unsafe_ptr()) != 0:
             raise Error("cannot publish .rbf: rename failed for " + path)
     except e:
         if not closed:
             _ = _close_fd(fd)
         # mkstemp записал выбранное имя в tmpl; при сбое удаляем именно его.
-        _ = external_call["unlink", Int](tmpl.unsafe_ptr())
+        _ = external_call["unlink", Int32](tmpl.unsafe_ptr())
         raise e
 
 

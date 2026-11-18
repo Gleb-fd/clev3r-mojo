@@ -17,8 +17,17 @@
 через временный файл рядом с целью; успешная запись сохраняет права
 существующего .rbf, при любом сбое (включая read-only каталог) цель побайтно
 прежняя, свежий output не появляется, своих временных файлов не остаётся;
-symlink-цель явно отклоняется. RLIMIT_FSIZE/short-write сценарии — отдельно:
+symlink-цель и существующая цель без права записи явно отклоняются, ошибка
+mkstemp — отдельный текст ("cannot create temporary file"), а не общий
+"write failed". RLIMIT_FSIZE/short-write сценарии — отдельно:
 `python3 tools/tests/test_asm_write.py`.
+
+ABI: st_mode берётся из stdlib std.os.lstat (без ручного смещения 24 в
+struct stat), C-вызовы — типизированные (int -> Int32, mode_t -> UInt32),
+поэтому тест не содержит x86-64-специфичных предположений и собирается на
+ARM/macOS. Проверка прав не-владельцем (read-only файл/каталог) выполняется
+только при ненулевом uid: у root access(W_OK) и open ведут себя иначе, такой
+случай в тесте честно пропускается.
 
 Ожидаемые байты выведены из C#-оракула (LMSObject.cs/Assembler.cs) и docs/04,
 а не из текущей реализации. Фикстуры пишутся в уникальный каталог /tmp,
@@ -26,7 +35,7 @@ symlink-цель явно отклоняется. RLIMIT_FSIZE/short-write сц�
 """
 
 from std.ffi import external_call
-from std.os import mkdir, symlink, listdir
+from std.os import getuid, listdir, lstat, mkdir, symlink
 from std.os.path import exists
 from std.time import perf_counter_ns
 
@@ -493,22 +502,22 @@ def cpath(s: String) -> List[UInt8]:
 
 
 def lstat_mode(path: String) raises -> Int:
-    """st_mode (lstat, смещение 24 в struct stat x86-64 Linux); -1 — нет файла."""
-    var p = cpath(path)
-    var st = List[UInt8](length=256, fill=UInt8(0))
-    if Int(external_call["lstat", Int](p.unsafe_ptr(), st.unsafe_ptr())) != 0:
+    """st_mode через stdlib lstat (без ручных смещений struct stat); -1 — нет файла."""
+    try:
+        return Int(lstat(path).st_mode)
+    except e:
         return -1
-    return (
-        Int(st[24])
-        | (Int(st[25]) << 8)
-        | (Int(st[26]) << 16)
-        | (Int(st[27]) << 24)
-    )
+
+
+def is_root() -> Bool:
+    """uid 0: проверки прав не-владельцем (EACCES) неприменимы — честно пропускаем."""
+    return Int(getuid()) == 0
 
 
 def chmod_path(path: String, mode: Int) raises:
+    # chmod(2): int chmod(const char*, mode_t) -> C int/mode_t, точные типы ABI.
     var p = cpath(path)
-    if Int(external_call["chmod", Int](p.unsafe_ptr(), mode)) != 0:
+    if external_call["chmod", Int32](p.unsafe_ptr(), UInt32(mode)) != 0:
         raise Error("test: chmod failed for " + path)
 
 
@@ -573,7 +582,7 @@ def test_symlink_target_refused(mut r: Reporter, dir: String) raises:
     var before = hex_of(read_bytes(real))
     var tgt = cpath(real)
     var lnk = cpath(link)
-    if Int(external_call["symlink", Int](tgt.unsafe_ptr(), lnk.unsafe_ptr())) != 0:
+    if external_call["symlink", Int32](tgt.unsafe_ptr(), lnk.unsafe_ptr()) != 0:
         r.fail("symlink_out: не удалось создать ссылку в scratch")
         return
 
@@ -612,8 +621,15 @@ def test_failed_write_preserves_existing(mut r: Reporter, dir: String) raises:
         r.fail("ro_out: assemble_file бросил наружу: " + String(e))
         return
     chmod_path(sub, 0o700)
+    if is_root():
+        # root обходит права каталога: сбой mkstemp не воспроизводится.
+        print("  SKIP ro_out (uid=0): права каталога не действуют для root")
+        return
     if len(errors) == 0:
         r.fail("ro_out: ожидалась ошибка записи в read-only каталог")
+    elif errors[0].find("cannot create temporary file") == -1:
+        # Отрицательный C int от mkstemp не должен выглядеть как валидный fd.
+        r.fail("ro_out: неожиданный текст ошибки mkstemp: " + errors[0])
     if not exists(dst):
         r.fail("ro_out: существующий .rbf удалён при сбое записи")
         return
@@ -638,12 +654,54 @@ def test_failed_write_creates_no_output(mut r: Reporter, dir: String) raises:
         r.fail("ro_new: assemble_file бросил наружу: " + String(e))
         return
     chmod_path(sub, 0o700)
+    if is_root():
+        print("  SKIP ro_new (uid=0): права каталога не действуют для root")
+        return
     if len(errors) == 0:
         r.fail("ro_new: ожидалась ошибка записи в read-only каталог")
     if exists(dst):
         r.fail("ro_new: .rbf создан при сбое записи")
     if len(temp_leftovers(sub, "ro_new.rbf")) != 0:
         r.fail("ro_new: остался временный файл после сбоя")
+
+
+def test_readonly_target_not_replaced(mut r: Reporter, dir: String) raises:
+    """Существующий .rbf без права записи (0444) не подменяется rename-ом.
+
+    Прежний open(path, "w") падал с EACCES; атомарный rename заменил бы файл
+    молча. Регрессия: отказ с внятным текстом, содержимое/права не тронуты,
+    временных файлов нет. Под root access(W_OK) успешен (как и open) — тогда
+    проверяется только сохранение поведения «замена разрешена», без ложных
+    утверждений о EACCES.
+    """
+    var src = write_fixture(dir, "ro_target", VALID_MINIMAL)
+    var dst = dir + "/ro_target.rbf"
+    write_text(dst, "SENTINEL: readonly target must not be replaced")
+    chmod_path(dst, 0o444)
+    var before = hex_of(read_bytes(dst))
+    var before_mode = lstat_mode(dst) & 0o7777
+    var errors = List[String]()
+    try:
+        errors = assemble_file(src, dst)
+    except e:
+        chmod_path(dst, 0o644)
+        r.fail("ro_target: assemble_file бросил наружу: " + String(e))
+        return
+    var after_mode = lstat_mode(dst) & 0o7777
+    chmod_path(dst, 0o644)
+    if is_root():
+        print("  SKIP ro_target EACCES (uid=0): root пишет в файл 0444, как и open")
+        return
+    if len(errors) == 0:
+        r.fail("ro_target: read-only файл молча заменён атомарным rename")
+    elif errors[0].find("not writable") == -1:
+        r.fail("ro_target: неожиданный текст ошибки: " + errors[0])
+    if hex_of(read_bytes(dst)) != before:
+        r.fail("ro_target: содержимое read-only .rbf изменено")
+    if after_mode != before_mode:
+        r.fail("ro_target: права read-only .rbf изменены: " + String(after_mode))
+    if len(temp_leftovers(dir, "ro_target.rbf")) != 0:
+        r.fail("ro_target: остался временный файл после отказа")
 
 
 # ---------------------------------------------------------------------------
@@ -668,6 +726,7 @@ def main() raises:
     test_atomic_publish_preserves_mode(r, work)
     test_atomic_publish_fresh_permissions(r, work)
     test_symlink_target_refused(r, work)
+    test_readonly_target_not_replaced(r, work)
     test_failed_write_preserves_existing(r, work)
     test_failed_write_creates_no_output(r, work)
 
