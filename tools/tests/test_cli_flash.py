@@ -351,6 +351,8 @@ def test_tcp_failure_modes(tmp):
         return
     src, wire = write_payload(tmp, size=1000)
     cases = [
+        ("handshake-close", "сбой setup (обрыв до handshake) -> ошибка"),
+        ("bad-handshake", "неверный handshake -> ошибка"),
         ("drop-begin-reply", "нет ответа на BEGIN -> fail-safe, без дублей"),
         ("bad-echo", "чужое эхо команды -> ошибка протокола"),
         ("truncated-begin", "обрезанный ответ -> ошибка протокола"),
@@ -383,6 +385,17 @@ def test_tcp_failure_modes(tmp):
             check(r.returncode != 0, f"tcp {mode}: rc != 0 ({what})",
                   f"rc={r.returncode}")
             events = read_report(report)
+            if mode in ("handshake-close", "bad-handshake"):
+                # До system-команд дело не дошло — заливки быть не должно.
+                cmd_events = [
+                    e for e in events if e.get("event") in ("syscmd", "direct")
+                ]
+                check(
+                    len(cmd_events) == 0,
+                    f"tcp {mode}: ни одной команды не отправлено",
+                    str(cmd_events),
+                )
+                continue
             begins = [e for e in events if e.get("event") == "begin"]
             conts = [e for e in events if e.get("event") == "continue"]
             check(len(begins) == 1,
