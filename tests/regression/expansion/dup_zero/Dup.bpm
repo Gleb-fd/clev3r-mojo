@@ -1,0 +1,6 @@
+Function A()
+  LCD.Text(1,0,0,1,"a")
+EndFunction
+Function A()
+  LCD.Text(1,0,0,1,"b")
+EndFunction

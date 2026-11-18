@@ -1,0 +1,10 @@
+Sub Hi
+  LCD.Text(1,0,0,1,"hi")
+EndSub
+Function Zero ()
+  LCD.Text(1,0,0,1,"zero")
+EndFunction
+Hi()
+Zero()
+Thread.Run = Hi
+LCD.Text(1,0,0,1,"ok")

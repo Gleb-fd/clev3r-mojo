@@ -1330,18 +1330,60 @@ def parse_func_init_lines(mut ctx: Ctx, mut funcs: List[ELine]):
             line.out_lines.append(OEntry(new_words^, LT_ONEKEYWORD, text))
 
 
-def parse_calls_list(mut ctx: Ctx, lines: List[ELine]):
-    """ParseFirstCall (Interpreter.cs:676-754) — только сбор имён вызовов."""
+def parse_calls_list(
+    mut ctx: Ctx, lines: List[ELine], subs: Dict[String, Bool]
+) raises:
+    """ParseFirstCall (Interpreter.cs:676-754) — сбор имён вызовов + разрешение имени.
+
+    Имена здесь уже mangled (`f_<имя>_<N>`, `m_<модуль>_<метод>_<N>`) — FuncRename
+    выполнен до этого прохода, как в C# (Linker.Start до Interpreter.Start).
+    Регистры: ctx.functions (функции main + методы модулей, ключ — mangled-имя) и
+    subs (процедуры main). Арность в ключ регистров не входит — семантика C#:
+    проверяется только существование имени.
+    """
     for k in range(len(lines)):
-        var t = lines[k].line_type
-        if t == LT_SUBCALL or t == LT_MODULEMETHODCALL:
-            if len(lines[k].words) >= 2:
-                var name = lines[k].words[0].text.lower()
-                ctx.calls_sub[name] = True
+        ref line = lines[k]
+        var t = line.line_type
+        if t == LT_SUBCALL or t == LT_FUNCCALL or t == LT_MODULEMETHODCALL:
+            if len(line.words) >= 2:
+                var name = line.words[0].text.lower()
+                if t == LT_SUBCALL:
+                    ctx.calls_sub[name] = True
+                else:
+                    ctx.calls_func[name] = True
+
+                if t == LT_SUBCALL:
+                    if not (name in subs) and not (name in ctx.functions):
+                        # Interpreter.cs:705/710: 1806 при аргументах, иначе 1606
+                        if len(line.words) > 2:
+                            ctx.add_error(
+                                line, 1806, "( " + line.words[0].origin + " )"
+                            )
+                            return
+                        ctx.add_error(
+                            line, 1606, "( " + line.words[0].origin + " )"
+                        )
+                        return
+                else:
+                    # FUNCCALL / MODULEMETHODCALL: только регистр функций (cs:717-721)
+                    if not (name in ctx.functions):
+                        ctx.add_error(line, 1806, "( " + line.words[0].origin + " )")
+                        return
         elif t == LT_METHODCALL:
-            if len(lines[k].words) >= 3 and lines[k].words[0].text.lower() == "thread.run":
-                var name = lines[k].words[2].text.lower()
-                ctx.calls_sub[name] = True
+            if len(line.words) > 0 and line.words[0].text.lower() == "thread.run":
+                # Interpreter.cs:728-747
+                if (
+                    len(line.words) != 3
+                    or line.words[1].token != TOK_EQU
+                    or line.words[2].token != TOK_SUBNAME
+                ):
+                    ctx.add_error(line, 1414, "")
+                    return
+                var tname = line.words[2].text.lower()
+                ctx.calls_sub[tname] = True
+                if not (tname in subs):
+                    ctx.add_error(line, 1606, "( " + line.words[2].origin + " )")
+                    return
 
 
 def parse_all_calls(
@@ -1350,12 +1392,19 @@ def parse_all_calls(
     subs: List[ELine],
     funcs: List[ELine],
     methods: List[ELine],
-):
+    subs_names: Dict[String, Bool],
+) raises:
     """ParseAllCalls (Interpreter.cs:654-677): main -> subs -> funcs -> методы модулей."""
-    parse_calls_list(ctx, main)
-    parse_calls_list(ctx, subs)
-    parse_calls_list(ctx, funcs)
-    parse_calls_list(ctx, methods)
+    parse_calls_list(ctx, main, subs_names)
+    if ctx.diags.has_errors():
+        return
+    parse_calls_list(ctx, subs, subs_names)
+    if ctx.diags.has_errors():
+        return
+    parse_calls_list(ctx, funcs, subs_names)
+    if ctx.diags.has_errors():
+        return
+    parse_calls_list(ctx, methods, subs_names)
 
 
 def parse_one_call(mut ctx: Ctx, mut lines: List[ELine]) raises:
@@ -1857,8 +1906,34 @@ def final_var_pass(mut lines: List[FlatItem]):
 # ============================================================================
 
 
-def run_expansion(path: String, outdir: String, mut ctx: Ctx) raises -> List[String]:
-    """Полный конвейер: исходник -> строки развёртки (диагностики в ctx.diags)."""
+def resolve_project_path(path: String, project_dir: String) -> String:
+    """Каталог разрешения relative include/import с ОБЯЗАТЕЛЬНЫМ trailing slash.
+
+    project_dir != "" — использовать его (in-memory/temp LSP: документ лежит не
+    рядом с реальным проектом); иначе — реальный родитель входа, как C#
+    Program.cs:35/43 (fi.DirectoryName). Голое имя `Main.bp` даёт dir_name ""
+    -> "." (без этого прежний код давал "/" и include/import искались от корня
+    ФС — подтверждённый дефект G/Additional-1).
+    """
+    var base = project_dir
+    if base == "":
+        base = dir_name(path)
+        if base == "":
+            base = "."
+    if base != "" and not base.endswith("/"):
+        base = base + "/"
+    return base^
+
+
+def run_expansion(
+    path: String, outdir: String, mut ctx: Ctx, project_dir: String = ""
+) raises -> List[String]:
+    """Полный конвейер: исходник -> строки развёртки (диагностики в ctx.diags).
+
+    project_dir — необязательный каталог разрешения relative include/import
+    (для LSP/temp-документов); "" = реальный родитель `path`. Имена generated
+    артефактов от него не зависят.
+    """
     var raw = read_lines(path)
     var file_name = path
 
@@ -1873,7 +1948,7 @@ def run_expansion(path: String, outdir: String, mut ctx: Ctx) raises -> List[Str
     var lib_path = String("")
     if outdir != "":
         lib_path = outdir + "/"
-    var pp = Preproc(dir_name(path) + "/", lib_path)
+    var pp = Preproc(resolve_project_path(path, project_dir), lib_path)
     first_find_files(pp, all_lines, file_name)
     for i in range(len(pp.diags.items)):
         ctx.diags.items.append(pp.diags.items[i].copy())
@@ -1941,8 +2016,16 @@ def run_expansion(path: String, outdir: String, mut ctx: Ctx) raises -> List[Str
     parse_func_init_lines(ctx, funcs)
     parse_func_init_lines(ctx, methods_text)
 
+    # --- CreateSubsDicionary (Linker.cs:748-786): регистр SUBNAME ----------------
+    var subs_names = Dict[String, Bool]()
+    for i in range(len(subs)):
+        if subs[i].line_type == LT_SUBINIT and len(subs[i].words) > 1:
+            subs_names[subs[i].words[1].text.lower()] = True
+
     # --- ParseAllCalls ------------------------------------------------------------
-    parse_all_calls(ctx, main2, subs, funcs, methods_text)
+    parse_all_calls(ctx, main2, subs, funcs, methods_text, subs_names)
+    if ctx.diags.has_errors():
+        return List[String]()
 
     # --- ParseCalls: main -> subs -> funcs -> методы модулей ------------------------
     parse_one_call(ctx, main2)
@@ -2030,5 +2113,11 @@ def cmd_expand(path: String, outdir: String) raises -> Int:
         mkdir(out_dir)
     except:
         pass
-    write_text(out_dir + "/~" + name + ".bp", lines_to_text(texts))
+    if len(texts) == 0:
+        # C# File.WriteAllLines(empty) -> пустой файл. lines_to_text([]) даёт "\n"
+        # (File.WriteAllLines с пустым листом перевод строки НЕ пишет) — без этой
+        # ветки пустой вход давал ~empty.bp из одного байта 0x0A.
+        write_text(out_dir + "/~" + name + ".bp", String(""))
+    else:
+        write_text(out_dir + "/~" + name + ".bp", lines_to_text(texts))
     return 0

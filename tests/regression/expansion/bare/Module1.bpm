@@ -1,0 +1,5 @@
+number x
+
+Function Show(in number n)
+  LCD.Text(1,0,0,1,"mod")
+EndFunction

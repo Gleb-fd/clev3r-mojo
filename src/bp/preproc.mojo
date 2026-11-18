@@ -52,8 +52,14 @@
 Отступление от C# (docs/notes-expansion-questions.md §4): CreateFullPath при `down > 0`
 в C# собирает путь из сегментов без ведущего разделителя (абсолютный путь становится
 относительным) и не ограничивает down глубиной базы; здесь путь собирается корректно
-(баг оракула на New_Path_Examples не воспроизводится). Чисто валидирующие проверки
-(скобочный баланс BracketErrorParser, грамматика параметров ModuleErrorParser,
+(баг оракула на New_Path_Examples не воспроизводится).
+
+Портированы узкие валидаторы подтверждённых дефектов:
+  * скобочный баланс BracketErrorParser (1001/1002) — main (Preprocessor.cs:55),
+    .bpi (IncludeErrorParser.cs:189), .bpm (ImportErrorParser.cs:263);
+  * дубликат функции нулевой арности в .bpm -> 1809 (ModuleErrorParser.cs:121-131).
+Дубликат с >=1 параметром по-прежнему молча схлопывается (ImportErrorParser.cs:340).
+Остальные валидирующие проверки (грамматика параметров ModuleErrorParser,
 StructErrorParser/ParseNames, ParsePropertyInFuncInit) не портированы — на валидном
 корпусе ошибок не дают.
 """
@@ -66,7 +72,9 @@ from bp.lexer import (
     Word,
     build_line,
     TOK_BRACKETLEFT,
+    TOK_BRACKETLEFTARRAY,
     TOK_BRACKETRIGHT,
+    TOK_BRACKETRIGHTARRAY,
     TOK_COMMA,
     TOK_DOUBLEBRACKET,
     TOK_FUNCNAME,
@@ -343,6 +351,39 @@ def _split_nonempty(s: String, sep: String) -> List[String]:
 
 
 # ============================================================================
+# Скобочный баланс: BracketErrorParser.cs:11-59
+# ============================================================================
+
+
+def bracket_error_code(line: Line) -> Int:
+    """BracketErrorParser.Start: 0 — баланс, 1001 — лишняя/незакрытая, 1002 — не та.
+
+    Стек ожидаемых закрывающих: BRACKETLEFT -> ")", BRACKETLEFTARRAY -> "]".
+    Токены "()"/"[]" (DOUBLEBRACKET*) C# не проверяет; строковые литералы — один
+    токен STRING, поэтому скобки внутри кавычек не влияют.
+    """
+    if line.line_type == LT_EMPTY:
+        return 0
+    var expect = List[String]()
+    for i in range(len(line.words)):
+        var tok = line.words[i].token
+        if tok == TOK_BRACKETLEFT:
+            expect.append(")")
+        elif tok == TOK_BRACKETLEFTARRAY:
+            expect.append("]")
+        elif tok == TOK_BRACKETRIGHT or tok == TOK_BRACKETRIGHTARRAY:
+            if len(expect) > 0:
+                var want = expect.pop()
+                if want != line.words[i].text:
+                    return 1002
+            else:
+                return 1001
+    if len(expect) > 0:
+        return 1001
+    return 0
+
+
+# ============================================================================
 # Пути: CreateFullPath (ImportErrorParser.cs:473-547 / IncludeErrorParser.cs:80-154)
 # ============================================================================
 
@@ -448,10 +489,15 @@ def parse_include(mut pp: Preproc, line: Line, main_file: String) raises:
             start_import(pp, ln, inc_path, tmp_path)
             if pp.diags.has_errors():
                 return
+        # BracketErrorParser.Start (IncludeErrorParser.cs:189)
+        var bc = bracket_error_code(ln)
+        if bc != 0:
+            pp.diags.add(tmp_path, i + 1, bc, "")
+            return
+
         lines.append(ln^)
         olds.append(raw[i])
 
-    # BracketErrorParser на валидном корпусе молчит — не портирован
     var key = line.line_number
     pp.inc_name[key] = inc_name
     pp.inc_file[key] = tmp_path
@@ -581,12 +627,40 @@ def load_module(
             if t != LT_EMPTY and t != LT_IMPORT and t != LT_ONEKEYWORD:
                 pp.diags.add(name + ".bpm", i + 1, 2008, "")
                 return
+        # BracketErrorParser.Start (ImportErrorParser.cs:263)
+        var bc = bracket_error_code(ln)
+        if bc != 0:
+            pp.diags.add(file_path, i + 1, bc, "")
+            return
         all_lines.append(ln^)
     if func:
         pp.diags.add(name + ".bpm", func_num, 1028, "")
         return
 
-    # ModuleErrorParser.Start (грамматика параметров функций) — чистая валидация,
+    # ModuleErrorParser.Start (ModuleErrorParser.cs:12-59, 121-131): проверяется
+    # только дубликат функции НУЛЕВОЙ арности (1809) — именно он отсутствовал;
+    # дубликаты с >=1 параметром по-прежнему молча схлопываются в реестре
+    # (ImportErrorParser.cs:340 — первое определение побеждает).
+    var zero_funcs = Dict[String, Bool]()
+    for i in range(len(all_lines)):
+        ref fl = all_lines[i]
+        if (
+            fl.line_type == LT_FUNCINIT
+            and len(fl.words) > 2
+            and fl.words[2].token == TOK_DOUBLEBRACKET
+        ):
+            var fname = fl.words[1].text.lower()
+            if fname in zero_funcs:
+                pp.diags.add(
+                    file_path,
+                    fl.line_number,
+                    1809,
+                    "( " + fl.words[1].origin_text + " (0)  )",
+                )
+                return
+            zero_funcs[fname] = True
+
+    # Остальная грамматика параметров и StructErrorParser — чистая валидация,
     # на валидном корпусе ошибок не даёт; не портирована.
 
     # --- удаление IMPORT/EMPTY (cs:86-93) ------------------------------------
@@ -721,6 +795,11 @@ def first_find_files(mut pp: Preproc, main_lines: List[Line], main_file: String)
     """Первый проход main: include/import (folder обрабатывается в expand.mojo)."""
     for k in range(len(main_lines)):
         ref line = main_lines[k]
+        # BracketErrorParser.Start (Preprocessor.cs:55) — до include/import
+        var bc = bracket_error_code(line)
+        if bc != 0:
+            pp.diags.add(main_file, line.line_number, bc, "")
+            return
         if line.line_type == LT_INCLUDE:
             parse_include(pp, line, main_file)
             if pp.diags.has_errors():

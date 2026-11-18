@@ -1,0 +1,4 @@
+import "Module1"
+Module1.x = 3
+Module1.Show(1)
+LCD.Text(1,0,0,1,"ok")

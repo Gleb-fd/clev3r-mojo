@@ -1,0 +1,11 @@
+number x
+
+Function A()
+  LCD.Text(1,0,0,1,"a")
+EndFunction
+Function A(in number n)
+  LCD.Text(1,0,0,1,"b")
+EndFunction
+Function A(in number n, in number m)
+  LCD.Text(1,0,0,1,"c")
+EndFunction
