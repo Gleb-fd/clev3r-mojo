@@ -103,19 +103,25 @@ def main() raises:
         if len(a) < 3:
             print("нужен путь к файлу: bp lex <file.bp>")
             return
-        _ = cmd_lex(a[2])
+        var lrc = cmd_lex(a[2])
+        if lrc != 0:
+            exit(lrc)
         return
     if cmd == "lmsb":
         if len(a) < 3:
             print("нужен путь к файлу: bp lmsb <путь/к/~Имя/~Имя.bp>")
             return
-        _ = cmd_lmsb(a[2])
+        var mrc = cmd_lmsb(a[2])
+        if mrc != 0:
+            exit(mrc)
         return
     if cmd == "rbf":
         if len(a) < 3:
             print("нужен путь к файлу: bp rbf <путь/к/<Имя>.lmsb>")
             return
-        _ = cmd_rbf(a[2])
+        var rrc = cmd_rbf(a[2])
+        if rrc != 0:
+            exit(rrc)
         return
     if cmd == "expand":
         if len(a) < 3:
@@ -124,7 +130,11 @@ def main() raises:
         var outdir = ""
         if len(a) > 3:
             outdir = a[3]
-        _ = cmd_expand(a[2], outdir)
+        # cmd_expand сам делает exit(1) при ошибках развёртки; rc != 0 —
+        # только для будущих/не-исключенческих неудач, без двойной обработки.
+        var erc = cmd_expand(a[2], outdir)
+        if erc != 0:
+            exit(erc)
         return
     if cmd == "compile":
         if len(a) < 3:
@@ -161,4 +171,12 @@ def main() raises:
         if lrc != 0:
             exit(lrc)
         return
+    # help/-h/--help — документированный вывод справки, успешный код 0.
+    if cmd == "help" or cmd == "-h" or cmd == "--help":
+        print(usage())
+        return
+    # Неизвестная команда — ошибка использования (как C# Program.cs: «Unknown
+    # command» -> 1), а не успех: иначе опечатка/скрипт молча «проходят».
+    print("bp: неизвестная команда '" + cmd + "'")
     print(usage())
+    exit(1)

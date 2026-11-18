@@ -6,6 +6,10 @@
 Печатает FLASH_TEST OK при успехе.
 """
 
+from std.os import getenv, mkdir, listdir, remove, rmdir
+from std.ffi import external_call
+from bp.util import write_text
+
 from bp.flash import (
     SYS_BEGIN_DOWNLOAD,
     SYS_CONTINUE_DOWNLOAD,
@@ -25,6 +29,7 @@ from bp.flash import (
     build_sockaddr_rc,
     build_stream_frame,
     build_system_packet,
+    c_close,
     c_read_file,
     check_direct_reply,
     check_download_status,
@@ -33,12 +38,13 @@ from bp.flash import (
     cmd_flash,
     continue_ranges,
     dest_cstr,
+    is_retry_safe,
+    open_transport,
     encode_const,
     encode_dc_string,
     encode_globvar,
     hex_of,
     is_ev3_uevent,
-    list_ev3_devices,
     parse_hid_report,
     parse_ipv4,
     parse_mac,
@@ -121,26 +127,80 @@ def test_hid_roundtrip() raises:
 
 
 def test_replies() raises:
-    var good = bytes_of([0x34, 0x12, 0x03, 0x00, 0x07, 0xAA])
-    var reply = check_system_reply(good, 0x1234)
-    expect_bytes(reply, bytes_of([0x00, 0x07, 0xAA]), "system-ответ: статус+данные")
-    check(check_download_status(reply, "BEGIN_DOWNLOAD") == 7, "handle из ответа")
-    var bad_ctr = bytes_of([0x35, 0x12, 0x03, 0x00, 0x07])
-    var failed = False
+    # Реальный ответ кирпича: [ctr u16][0x03][эхо команды][статус][данные...]
+    # (EV3Connection.cs:66-117: Array.Copy(packet, 4, ...)).
+    var begin_ok = bytes_of([0x34, 0x12, 0x03, SYS_BEGIN_DOWNLOAD, 0x00, 0x07])
+    var reply = check_system_reply(begin_ok, 0x1234, SYS_BEGIN_DOWNLOAD)
+    expect_bytes(reply, bytes_of([0x00, 0x07]), "BEGIN-ответ: статус+handle")
+    check(
+        check_download_status(reply, "BEGIN_DOWNLOAD") == 7,
+        "handle 7 из реалистичного BEGIN-ответа",
+    )
+    # 0x05 (SYSTEM_REPLY_NO_ERROR) — тоже валидный тип.
+    var begin_alt = bytes_of([0x34, 0x12, 0x05, SYS_BEGIN_DOWNLOAD, 0x00, 0x09])
+    var reply_alt = check_system_reply(begin_alt, 0x1234, SYS_BEGIN_DOWNLOAD)
+    expect_bytes(reply_alt, bytes_of([0x00, 0x09]), "BEGIN-ответ типа 0x05")
+    # CONTINUE: эхо 0x93, статус 0x00, handle.
+    var cont_ok = bytes_of([0x34, 0x12, 0x03, SYS_CONTINUE_DOWNLOAD, 0x00, 0x07])
+    var creply = check_system_reply(cont_ok, 0x1234, SYS_CONTINUE_DOWNLOAD)
+    expect_bytes(creply, bytes_of([0x00, 0x07]), "CONTINUE-ответ: статус+handle")
+    # END_OF_FILE (0x08) — валидный статус завершения.
+    var cont_eof = bytes_of([0x34, 0x12, 0x03, SYS_CONTINUE_DOWNLOAD, 0x08, 0x07])
+    var ereply = check_system_reply(cont_eof, 0x1234, SYS_CONTINUE_DOWNLOAD)
+    check(
+        check_download_status(ereply, "CONTINUE_DOWNLOAD") == 7,
+        "END_OF_FILE принимается как успех CONTINUE",
+    )
+    # CREATE_DIR: эхо 0x9B, только статус (нет payload).
+    var mk = bytes_of([0x02, 0x00, 0x03, SYS_CREATE_DIR, 0x00])
+    var mreply = check_system_reply(mk, 2, SYS_CREATE_DIR)
+    expect_bytes(mreply, bytes_of([0x00]), "CREATE_DIR-ответ: только статус")
+
+    def rejects(packet: List[UInt8], ctr: Int, cmd: Int, what: String) raises:
+        var failed = False
+        try:
+            _ = check_system_reply(packet, ctr, cmd)
+        except:
+            failed = True
+        check(failed, what)
+
+    rejects(
+        bytes_of([0x35, 0x12, 0x03, SYS_BEGIN_DOWNLOAD, 0x00, 0x07]),
+        0x1234, SYS_BEGIN_DOWNLOAD, "чужой счётчик отклоняется",
+    )
+    rejects(
+        bytes_of([0x34, 0x12, 0x02, SYS_BEGIN_DOWNLOAD, 0x00, 0x07]),
+        0x1234, SYS_BEGIN_DOWNLOAD, "неверный тип ответа отклоняется",
+    )
+    # Эхо чужой команды — ошибка протокола, а не тихий приём.
+    rejects(
+        bytes_of([0x34, 0x12, 0x03, SYS_CREATE_DIR, 0x00, 0x07]),
+        0x1234, SYS_BEGIN_DOWNLOAD, "чужое эхо команды отклоняется",
+    )
+    # Обрезанный ответ: < 5 байт (нет статуса после эха).
+    rejects(
+        bytes_of([0x34, 0x12, 0x03, SYS_BEGIN_DOWNLOAD]),
+        0x1234, SYS_BEGIN_DOWNLOAD, "оборванный ответ (4 байта) отклоняется",
+    )
+    rejects(
+        bytes_of([0x34, 0x12]), 0x1234, SYS_BEGIN_DOWNLOAD,
+        "ответ без типа отклоняется",
+    )
+    # Неверный статус в BEGIN (не 0x00/0x08) ловится check_download_status,
+    # а не молча принимается.
+    var bad_status = check_system_reply(
+        bytes_of([0x34, 0x12, 0x03, SYS_BEGIN_DOWNLOAD, 0x05, 0x07]),
+        0x1234, SYS_BEGIN_DOWNLOAD,
+    )
+    var status_failed = False
     try:
-        _ = check_system_reply(bad_ctr, 0x1234)
+        _ = check_download_status(bad_status, "BEGIN_DOWNLOAD")
     except:
-        failed = True
-    check(failed, "чужой счётчик отклоняется")
-    var bad_type = bytes_of([0x34, 0x12, 0x02, 0x00, 0x07])
-    failed = False
-    try:
-        _ = check_system_reply(bad_type, 0x1234)
-    except:
-        failed = True
-    check(failed, "неверный тип ответа отклоняется")
+        status_failed = True
+    check(status_failed, "неверный статус BEGIN (0x05) отклоняется")
+
     var derr = bytes_of([0x01, 0x00, 0x04])
-    failed = False
+    var failed = False
     try:
         _ = check_direct_reply(derr, 1, 0)
     except:
@@ -184,8 +244,9 @@ def test_paths_and_scan() raises:
         not is_ev3_uevent("DRIVER=x\n"),
         "uevent без HID_ID отбрасывается",
     )
-    var devs = list_ev3_devices()
-    check(len(devs) == 0, "на этой машине EV3 нет (найдено 0)")
+    # ВАЖНО: обязательный offline-тест не должен зависеть от наличия живого
+    # EV3 на машине. list_ev3_devices() сканирует /sys и здесь НЕ вызывается:
+    # проверяется только чистое распознавание uevent-строк выше.
 
 
 def test_read_rbf() raises:
@@ -315,4 +376,73 @@ def main() raises:
     test_read_rbf()
     test_dry_run()
     test_stream_transports()
+    test_open_transport_fd_cleanup()
+    test_retry_safety()
     print("FLASH_TEST OK")
+
+
+def _open_fd_count() raises -> Int:
+    """Число открытых fd текущего процесса (чтение /proc/self/fd)."""
+    return len(listdir("/proc/self/fd"))
+
+
+def test_open_transport_fd_cleanup() raises:
+    """Сбой setup транспорта не должен утекать fd.
+
+    Детерминированный hardware-free случай: потоковый target с '/' (путь
+    rfcomm), но файл — обычный, не tty: open_transport успевает сделать
+    c_open, затем serial_make_raw падает на ioctl TCGETS. Раньше fd в этот
+    момент терялся; теперь закрывается на любом setup-failure.
+    """
+    var pid = Int(external_call["getpid", Int]())
+    var dir = "/tmp/bp_flash_fdtest_" + String(pid)
+    try:
+        mkdir(dir)
+    except:
+        pass
+    var path = dir + "/rfcomm_not_a_tty"
+    write_text(path, "x")
+    var before = _open_fd_count()
+    var failed = False
+    try:
+        _ = open_transport(TRANSPORT_STREAM, path)
+    except:
+        failed = True
+    check(failed, "open_transport: не-tty serial падает (setup failure)")
+    var after = _open_fd_count()
+    check(after <= before, "open_transport: fd не утёк при сбое setup")
+    # Успешный путь не должен закрывать fd дважды: открываем обычный файл
+    # напрямую как USB-target (реальный fd возвращается без setup-стадий).
+    var usbfd = open_transport(TRANSPORT_USB, path)
+    check(usbfd > 2, "open_transport: успешный USB-path вернул живой fd")
+    var after_open = _open_fd_count()
+    check(after_open == before + 1, "open_transport: успех = ровно один новый fd")
+    # Закрыть через syscall-close (тот же слой, что использует flash).
+    c_close(usbfd)
+    check(_open_fd_count() == before, "open_transport: fd закрывается один раз")
+    # Убрать только свой уникальный temp-каталог (pid в имени).
+    try:
+        remove(path)
+    except:
+        pass
+    try:
+        rmdir(dir)
+    except:
+        pass
+
+
+def test_retry_safety() raises:
+    """Ретраи не должны дублировать неидемпотентную заливку.
+
+    BEGIN/CONTINUE_DOWNLOAD после потери ACK повторять нельзя (кирпич мог
+    принять кадр; новый ctr -> дубли байтов). CREATE_DIR идемпотентна.
+    """
+    check(
+        not is_retry_safe(SYS_BEGIN_DOWNLOAD),
+        "BEGIN_DOWNLOAD не ретраится автоматически",
+    )
+    check(
+        not is_retry_safe(SYS_CONTINUE_DOWNLOAD),
+        "CONTINUE_DOWNLOAD не ретраится автоматически",
+    )
+    check(is_retry_safe(SYS_CREATE_DIR), "CREATE_DIR идемпотентна (ретрай ок)")

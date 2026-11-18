@@ -228,11 +228,18 @@ def parse_hid_report(raw: List[UInt8]) raises -> List[UInt8]:
     return out^
 
 
-def check_system_reply(packet: List[UInt8], counter: Int) raises -> List[UInt8]:
+def check_system_reply(
+    packet: List[UInt8], counter: Int, cmd: Int
+) raises -> List[UInt8]:
     """Проверка ответа на system-команду; возвращает [статус][данные...].
 
-    EV3Connection.SystemCommand: длина >= 3, счётчик совпадает, тип 0x03/0x05,
-    длина >= 5; дальше ответ идёт с позиции 3: [статус][данные...].
+    Реальный формат ответа (EV3Connection.cs:66-117, ev3tool.py sys_cmd):
+    [счётчик u16][0x03|0x05][эхо команды u8][статус u8][данные...].
+    Длина >= 5 (счётчик+тип+эхо+статус), эхо-команда должна совпадать с
+    отправленной. Полезная нагрузка начинается с позиции 4 — C#
+    `Array.Copy(packet, 4, replyarguments, 0, packet.Length - 4)`.
+    ВАЖНО: старый возврат packet[3:] принимал эхо-команду за статус
+    (для BEGIN 0x92), реальный кирпич из-за этого не проходил.
     """
     if len(packet) < 3:
         raise Error("flash: ответ без счётчика")
@@ -244,8 +251,13 @@ def check_system_reply(packet: List[UInt8], counter: Int) raises -> List[UInt8]:
         raise Error("flash: ответ неверного типа")
     if len(packet) < 5:
         raise Error("flash: оборванный ответ")
+    if Int(packet[3]) != (cmd & 0xFF):
+        raise Error(
+            "flash: в ответе эхо чужой команды " + String(Int(packet[3]))
+            + " вместо " + String(cmd & 0xFF)
+        )
     var out = List[UInt8]()
-    for i in range(3, len(packet)):
+    for i in range(4, len(packet)):
         out.append(packet[i])
     return out^
 
@@ -872,17 +884,29 @@ def open_transport(transport: Int, target: String) raises -> Int:
         # /dev/rfcommN: serial-устройство с кадрами [len][пакет]; порт нужно
         # перевести в raw, иначе line discipline портит бинарный поток.
         var fd = c_open(target, O_RDWR)
-        serial_make_raw(fd)
+        try:
+            serial_make_raw(fd)
+        except e:
+            c_close(fd)
+            raise e
         return fd
     if target.find(":") != -1:
         var fd = c_socket(AF_BLUETOOTH, SOCK_STREAM + SOCK_NONBLOCK, BTPROTO_RFCOMM)
-        var addr = build_sockaddr_rc(target, EV3_BT_CHANNEL)
-        stream_connect(fd, addr, CONNECT_TIMEOUT_MS)
+        try:
+            var addr = build_sockaddr_rc(target, EV3_BT_CHANNEL)
+            stream_connect(fd, addr, CONNECT_TIMEOUT_MS)
+        except e:
+            c_close(fd)
+            raise e
         return fd
     var fd = c_socket(AF_INET, SOCK_STREAM + SOCK_NONBLOCK, 0)
-    var addr = build_sockaddr_in(target, EV3_WIFI_PORT)
-    stream_connect(fd, addr, CONNECT_TIMEOUT_MS)
-    wifi_handshake(fd, REPLY_TIMEOUT_MS)
+    try:
+        var addr = build_sockaddr_in(target, EV3_WIFI_PORT)
+        stream_connect(fd, addr, CONNECT_TIMEOUT_MS)
+        wifi_handshake(fd, REPLY_TIMEOUT_MS)
+    except e:
+        c_close(fd)
+        raise e
     return fd
 
 
@@ -938,13 +962,41 @@ def recv_matching(
         return packet^
 
 
+def hex_of_byte(b: Int) -> String:
+    """Байт как две hex-цифры (диагностика в сообщениях)."""
+    var digits = String("0123456789abcdef")
+    return (
+        String(digits[byte=(b >> 4) & 0xF : ((b >> 4) & 0xF) + 1])
+        + String(digits[byte=b & 0xF : (b & 0xF) + 1])
+    )
+
+
+def is_retry_safe(cmd: Int) -> Bool:
+    """Безопасно ли повторить system-команду при таймауте ответа.
+
+    Повтор шлёт НОВЫЙ счётчик. CREATE_DIR идемпотентна (повтор на уже
+    существующий каталог безопасен, вызывается best-effort с attempts=1).
+    BEGIN/CONTINUE_DOWNLOAD — НЕТ: если кирпич уже принял кадр, но ответ
+    потерялся (ACK неопределён), повтор с новым ctr открывает/продолжает
+    передачу заново и дублирует/портит байты файла на кирпиче (C#
+    EV3Connection.CreateEV3File вообще не ретраит SystemCommand).
+    """
+    return cmd == SYS_CREATE_DIR or cmd == SYS_DELETE_FILE
+
+
 def sys_cmd(
     fd: Int, counter: Int, cmd: Int, args: List[UInt8], attempts: Int,
     transport: Int,
 ) raises -> Tuple[Int, List[UInt8]]:
-    """System-команда с ретраями при таймауте. Возвращает (счётчик, ответ)."""
+    """System-команда с ретраями при таймауте. Возвращает (счётчик, ответ).
+
+    Fail-safe: неидемпотентные BEGIN/CONTINUE_DOWNLOAD НЕ повторяются
+    автоматически — при потере ответа ACK неопределён (кирпич мог принять
+    кадр), повтор с новым ctr дублировал бы данные. Вместо silent corruption —
+    явная ошибка с требованием проверить/повторить заливку вручную.
+    """
     var ctr = counter
-    var attempt = 0
+    var attempt = 1
     while True:
         ctr += 1
         send_packet_any(fd, build_system_packet(ctr, cmd, args), transport)
@@ -952,11 +1004,19 @@ def sys_cmd(
         try:
             packet = recv_matching(fd, ctr, REPLY_TIMEOUT_MS, transport)
         except:
-            attempt += 1
+            if not is_retry_safe(cmd):
+                raise Error(
+                    "flash: нет ответа на system-команду 0x" + hex_of_byte(cmd)
+                    + " — ACK неопределён (кирпич мог принять кадр)."
+                    + " Автоповтор неидемпотентной заливки отключён, чтобы"
+                    + " не дублировать байты; проверь файл на кирпиче и"
+                    + " повтори заливку вручную"
+                )
             if attempt >= attempts:
                 raise Error("flash: нет ответа от кирпича (таймаут)")
+            attempt += 1
             continue
-        return (ctr, check_system_reply(packet, ctr))
+        return (ctr, check_system_reply(packet, ctr, cmd))
 
 
 def direct_cmd(
