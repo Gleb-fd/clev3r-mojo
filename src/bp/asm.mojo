@@ -1628,8 +1628,14 @@ struct Assembler(Movable):
 
     # ---- вывод -----------------------------------------------------------
 
-    def generate_output(mut self, out_path: String) raises:
-        """Assembler.GenerateOutput (Assembler.cs:593-631)."""
+    def build_output(mut self) raises -> List[UInt8]:
+        """Assembler.GenerateOutput (Assembler.cs:593-631): полный образ .rbf.
+
+        Как и в C#, образ формируется в памяти (у оракула — MemoryStream) и
+        пишется в файл только вызывающим — assemble_file — и только при пустом
+        errorList (Builder.cs:113-125). Здесь нет прямой записи в файл, чтобы
+        ошибка на любом шаге не создала/не усекла выходной .rbf.
+        """
         var numobjects = len(self.objects)
 
         # байткоды во временный буфер (по возрастанию ID = индексу)
@@ -1655,7 +1661,7 @@ struct Assembler(Movable):
         for i in range(len(allbytecodes)):
             raw.append(allbytecodes[i])
 
-        write_bytes_file(out_path, raw^)
+        return raw^
 
 
 # ============================================================================
@@ -1750,7 +1756,13 @@ def rbf_path_for(lmsb_path: String) -> String:
 
 
 def assemble_file(in_path: String, out_path: String) raises -> List[String]:
-    """Assembler.Start: разбор + вывод; возвращает список ошибок (как errorList)."""
+    """Assembler.Start + Builder.Start: разбор + вывод; возвращает errorList.
+
+    Соответствует C#: ассемблер пишет в MemoryStream (Assembler.cs:70-108),
+    а файл .rbf появляется только когда errorList пуст (Builder.cs:113-125).
+    Поэтому невалидный/незакрытый/неразрешённый вход не создаёт новый .rbf и
+    не трогает уже существующий (устаревший файл остаётся побайтно прежним).
+    """
     var errors = List[String]()
     var asm = Assembler()
 
@@ -1763,8 +1775,12 @@ def assemble_file(in_path: String, out_path: String) raises -> List[String]:
     if asm.current != -1:
         errors.append("Unexpected end of file")
 
+    # Образ строится всегда (как GenerateOutput в C#: его ошибки попадают в
+    # errorList), но файл пишется только при пустом errorList.
     try:
-        asm.generate_output(out_path)
+        var image = asm.build_output()
+        if len(errors) == 0:
+            write_bytes_file(out_path, image)
     except e:
         errors.append("Error at subcall integration: " + String(e))
 
