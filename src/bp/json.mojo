@@ -20,6 +20,10 @@ comptime JK_STR = 3
 comptime JK_ARR = 4
 comptime JK_OBJ = 5
 
+# Жёсткий предел вложенности (без конфигурации): защита от рекурсивного
+# разбора глубокого враждебного JSON до переполнения стека/памяти.
+comptime JSON_MAX_DEPTH = 128
+
 
 @fieldwise_init
 struct JNode(Copyable, Movable):
@@ -290,13 +294,21 @@ def _parse_number(mut p: JParser, mut doc: JDoc, key: String) raises -> Int:
     return doc.add(JK_NUM, _jsub_bytes(p.text, start, p.pos), key)
 
 
-def _parse_value(mut p: JParser, mut doc: JDoc, key: String) raises -> Int:
+def _parse_value(
+    mut p: JParser, mut doc: JDoc, key: String, depth: Int
+) raises -> Int:
+    # depth — число УЖЕ открытых контейнеров; 128-й контейнер допустим,
+    # 129-й отвергается до входа в рекурсию.
     var b = p.peek()
     var c = Int(b)
     if c == 123:  # {
-        return _parse_object(p, doc, key)
+        if depth >= JSON_MAX_DEPTH:
+            raise Error("json: превышена глубина вложенности")
+        return _parse_object(p, doc, key, depth)
     if c == 91:  # [
-        return _parse_array(p, doc, key)
+        if depth >= JSON_MAX_DEPTH:
+            raise Error("json: превышена глубина вложенности")
+        return _parse_array(p, doc, key, depth)
     if c == 34:  # "
         return _parse_string(p, doc, key)
     if c == 116:  # true
@@ -323,7 +335,9 @@ def _link_child(mut doc: JDoc, parent: Int, child: Int):
         doc.nodes[s].sib = child
 
 
-def _parse_object(mut p: JParser, mut doc: JDoc, key: String) raises -> Int:
+def _parse_object(
+    mut p: JParser, mut doc: JDoc, key: String, depth: Int
+) raises -> Int:
     p.expect(123)  # {
     var obj = doc.add(JK_OBJ, "", key)
     p.skip_ws()
@@ -342,7 +356,7 @@ def _parse_object(mut p: JParser, mut doc: JDoc, key: String) raises -> Int:
         p.skip_ws()
         p.expect(58)  # :
         p.skip_ws()
-        var v = _parse_value(p, doc, k)
+        var v = _parse_value(p, doc, k, depth + 1)
         _link_child(doc, obj, v)
         _ = ks
         p.skip_ws()
@@ -357,7 +371,9 @@ def _parse_object(mut p: JParser, mut doc: JDoc, key: String) raises -> Int:
     return obj
 
 
-def _parse_array(mut p: JParser, mut doc: JDoc, key: String) raises -> Int:
+def _parse_array(
+    mut p: JParser, mut doc: JDoc, key: String, depth: Int
+) raises -> Int:
     p.expect(91)  # [
     var arr = doc.add(JK_ARR, "", key)
     p.skip_ws()
@@ -366,7 +382,7 @@ def _parse_array(mut p: JParser, mut doc: JDoc, key: String) raises -> Int:
         return arr
     while True:
         p.skip_ws()
-        var v = _parse_value(p, doc, "")
+        var v = _parse_value(p, doc, "", depth + 1)
         _link_child(doc, arr, v)
         p.skip_ws()
         var b = p.peek()
@@ -385,7 +401,7 @@ def json_parse(text: String) raises -> JDoc:
     var doc = JDoc()
     var p = JParser(text)
     p.skip_ws()
-    var r = _parse_value(p, doc, "")
+    var r = _parse_value(p, doc, "", 0)
     doc.root = r
     p.skip_ws()
     if not p.eof():
