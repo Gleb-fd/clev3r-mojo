@@ -20,6 +20,12 @@ Preprocessor → Interpreter → Compiler → Assembler. Язык существ
 
 Расширения: `.bp`, `.bpi` (include), `.bpm` (module), `.lms` (`Builder.cs:26-29`).
 Кодировка входа стадии 3: UTF-8 (`Compiler/Scanner.cs:43`), строки читаются `ReadLine` до конца потока (`Compiler/Scanner.cs:46-49`).
+На входе всего конвейера C# использует `File.ReadAllLines`: **один** ведущий UTF-8 BOM
+снимается, разделителями строк считаются CRLF, LF и CR. Порт повторяет это
+(`src/bp/util.mojo`, `read_lines`/`text_to_lines`); второй BOM в файле остаётся
+содержимым строки, как и в C#. Прочие кодировки C# (`Encoding.Default` с байтовыми
+колонками, UTF-16LE/BE с автодетектом) в порт **не перенесены** — вход
+документирован как UTF-8 (см. `docs/port-audit.md` §8.1).
 
 Языковые варианты `ru/en/ua`: **влияют только на тексты сообщений об ошибках**
 (`Builder.cs:40-54` → `Language.Type`, `CommonData/Data.cs:19-31` → `ErrorsCodeList.SetRU/SetEN/SetUA`).
@@ -345,7 +351,7 @@ tablelookup` со строковым аргументом переписываю
 | Числа | `[0-9]([0-9.])*` — десятичные с необязательной точкой, знак в лексер не входит (унарный минус — часть грамматики); парсинг стадии 3: `double.TryParse(NumberStyles.Float, InvariantCulture)` | `Compiler/Scanner.cs:171-191`, `Compiler/Compiler.cs:1467-1475` |
 | Дробные | `2.5`, `0.5`; форма `.5` НЕВЕРНА (лексер требует цифру в начале); форма `5.` парсится как 5.0; `1.2.3` даёт токен NUMBER, но падает на `double.TryParse` («Can not decode number») | `Compiler/Scanner.cs:184`, `Compiler/Compiler.cs:1470-1473` |
 | Hex-литералы | **не поддерживаются** ни на одном уровне; hex-строки конвертирует встроенный `byte.h("ff")` | `DataTemplates/DefaultObjectList.cs:44` |
-| Строки | `"текст"`, предел 251 символ («Text is longer than 251 letters»); кавычка внутри строки удваивается: `"a""b"` → содержимое `a""b` → `a"b` (правило «дополнительная " продолжает строку») | `Compiler/Compiler.cs:1460-1465`, `Compiler/Scanner.cs:192-221` |
+| Строки | `"текст"`, предел **251 единица UTF-16** (`string.Length` в C#: BMP-символ = 1, суррогатная пара = 2), сообщение «Text is longer than 251 letters»; кавычка внутри строки удваивается: `"a""b"` → содержимое `a""b` → `a"b` (правило «дополнительная " продолжает строку») | `Compiler/Compiler.cs:1460-1465`, `Compiler/Scanner.cs:192-221` |
 | Незакрытая строка | ошибка `Nonterminated string at: L:C` — обычный Exception, не CompileException | `Compiler/Scanner.cs:196-201` |
 | Экранирование на выходе (стадия 3) | символы `<32`, `>127`, `'`, `\` → `\DDD` (3 восьмеричные цифры); код `≤0` или `>255` заменяется на 1 | `Compiler/Compiler.cs:1701-1723` |
 | Комментарий | `'` … конец строки (см. §2) | `Utils/LineBuilder.cs:17-31` |
@@ -439,7 +445,9 @@ GOTO        → GOTO id EOL          ; метка — `id:` (см. атомар�
   только встроенный `ev3file.converttonumber` (`DataTemplates/DefaultObjectList.cs:67`).
   Аргументы типов ANY принимают и то и другое (`DataTemplates/DefaultSignature.cs:15-20`).
 - Литералы: NUMBER → `NumberExpression(double)`, при выводе всегда с `.0` для целых
-  (`Compiler/Expression.cs:111-122`); STRING предел 251 (§7).
+  (`Compiler/Expression.cs:111-122`); STRING предел 251 (§7). Порт считает предел
+  в UTF-16 code units, как C#, а не в байтах UTF-8: 126 кириллических `ж` (252 байта)
+  компилируются, 252 ASCII и 126 эмодзи — нет (см. `docs/port-audit.md` §8.1).
 
 ## 9. Позиции для диагностик
 
