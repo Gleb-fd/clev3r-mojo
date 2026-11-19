@@ -17,8 +17,9 @@
     (совпадение sha при разных путях — законная копия, помечается явно);
   * benchmark: warmup>=3, measure>=9, perf_counter вокруг subprocess.run,
     median/min/max + сырые samples, сравнение выходов вне timed-секции;
-    инструменты замеряются interleaved (round-robin по итерациям), иначе
-    дрейф частоты CPU смещает тот инструмент, чей блок шёл первым;
+    инструменты замеряются interleaved с ротацией порядка по итерациям, а
+    решение о регрессии считается по медиане ПАРНЫХ отношений c_i/b_i
+    (дрейф-устойчиво); медианы отдельных выборок всё равно пишутся в отчёт;
     шесть случаев: small, brickbench, generated3000 (3052 строки — тот же
     fixture, что и в сохранённом baseline t10), include, module, empty;
   * baseline для сравнительного режима обязателен: BP_BASELINE_BINARY или
@@ -657,12 +658,23 @@ def main(argv=None):
         инструментах каждая позиция достаётся каждому инструменту 4 раза.
         Бюджет прежний: warmup 3, затем 9 замеров на инструмент; пороги регрессии
         (REGRESSION_MEDIAN / REGRESSION_ABS_MS) не менялись.
+
+        Решение о регрессии/baseline принимается по ПАРНЫМ отношениям: для каждой
+        итерации, где измерены baseline и current, считается c_i/b_i, и берётся
+        медиана этих отношений (paired). Это устойчиво к медленному дрейфу:
+        если вся машина в данной итерации медленнее, страдают оба инструмента и
+        отношение остаётся около 1. Медиана же отдельных выборок на 15–20-мс
+        кейсах с разбросом 12–24 мс может уехать на 20–40% от фазовых эффектов
+        (ложный RED, который воспроизводился и повтором).
         """
         samples = {tool: [] for tool, _, _, _ in specs}
         errors = {}
+        paired_ratio = []
+        paired_delta = []
         n = len(specs)
         for i in range(WARMUP + MEASURED):
             order = specs[i % n:] + specs[: i % n]
+            iteration = {}
             for tool, d, entry, binary in order:
                 if tool in errors:
                     continue
@@ -671,8 +683,30 @@ def main(argv=None):
                     err["iteration"] = i
                     errors[tool] = err
                     continue
+                iteration[tool] = dt_ms
                 if i >= WARMUP:
                     samples[tool].append(dt_ms)
+            if (
+                i >= WARMUP
+                and "baseline" in iteration
+                and "current" in iteration
+                and iteration["baseline"] > 0
+            ):
+                paired_ratio.append(
+                    iteration["current"] / iteration["baseline"]
+                )
+                paired_delta.append(iteration["current"] - iteration["baseline"])
+        pairs = {
+            "n": len(paired_ratio),
+            "ratios": paired_ratio,
+            "deltas_ms": paired_delta,
+            "median_ratio": (
+                statistics.median(paired_ratio) if paired_ratio else None
+            ),
+            "median_delta_ms": (
+                statistics.median(paired_delta) if paired_delta else None
+            ),
+        }
         out = {}
         for tool in samples:
             if tool in errors:
@@ -686,6 +720,7 @@ def main(argv=None):
                 "min_ms": min(v),
                 "max_ms": max(v),
                 "mean_ms": statistics.mean(v),
+                "paired": pairs,
             }
         return out
 
@@ -787,20 +822,40 @@ def main(argv=None):
         rec["commands"] = {tool: runs[tool]["cmd"] for tool in runs}
         rec["parity"] = parity
         rec["timings"] = timings
-        if "median_ms" in timings.get("baseline", {}) and "median_ms" in timings.get("current", {}):
-            ratio = (
-                timings["current"]["median_ms"] / timings["baseline"]["median_ms"]
-            )
-            delta = (
-                timings["current"]["median_ms"] - timings["baseline"]["median_ms"]
-            )
+
+        def regression_metric(t):
+            """(ratio, delta_ms, metric_name) для решения о регрессии.
+
+            Предпочтение — медиана ПАРНЫХ отношений c_i/b_i (дрейф-устойчиво);
+            медианы отдельных выборок — только fallback, если пар нет.
+            """
+            pair = t.get("current", {}).get("paired") or {}
+            if pair.get("median_ratio") is not None:
+                return (
+                    pair["median_ratio"],
+                    pair["median_delta_ms"],
+                    "paired-median",
+                )
+            if (
+                "median_ms" in t.get("baseline", {})
+                and "median_ms" in t.get("current", {})
+            ):
+                b = t["baseline"]["median_ms"]
+                c = t["current"]["median_ms"]
+                return c / b, c - b, "block-median"
+            return None
+
+        metric = regression_metric(timings)
+        if metric is not None:
+            ratio, delta, ratio_metric = metric
             rec["current_over_baseline"] = ratio
             rec["current_minus_baseline_ms"] = delta
+            rec["ratio_metric"] = ratio_metric
             status = "ok"
             if ratio > 1.0 + REGRESSION_MEDIAN and delta > REGRESSION_ABS_MS:
                 print(
-                    f"  {label}: возможная регрессия current/baseline={ratio:.3f} "
-                    f"(+{delta:.2f}ms), повторяю замер",
+                    f"  {label}: возможная регрессия ({ratio_metric}) "
+                    f"current/baseline={ratio:.3f} (+{delta:.2f}ms), повторяю замер",
                     flush=True,
                 )
                 rep = measure_group(
@@ -809,24 +864,27 @@ def main(argv=None):
                         ("current", dirs["current"], entry, bp),
                     ]
                 )
-                if any("error" in v for v in rep.values()):
+                metric2 = regression_metric(rep)
+                if any("error" in v for v in rep.values()) or metric2 is None:
                     fail(f"bench/{label}/repeat", f"повторный замер упал: {rep}")
                 else:
-                    ratio2 = rep["current"]["median_ms"] / rep["baseline"]["median_ms"]
-                    delta2 = rep["current"]["median_ms"] - rep["baseline"]["median_ms"]
+                    ratio2, delta2, ratio_metric2 = metric2
                     rec["repeat"] = rep
                     rec["repeat_current_over_baseline"] = ratio2
+                    rec["repeat_ratio_metric"] = ratio_metric2
                     if ratio2 > 1.0 + REGRESSION_MEDIAN and delta2 > REGRESSION_ABS_MS:
                         status = "confirmed-regression"
                         fail(
                             f"bench/{label}/regression",
-                            f"регрессия подтверждена повтором: {ratio2:.3f} (+{delta2:.2f}ms)",
+                            f"регрессия подтверждена повтором ({ratio_metric2}): "
+                            f"{ratio2:.3f} (+{delta2:.2f}ms)",
                         )
                     else:
                         status = "noise-refuted-by-repeat"
                         ok(
                             f"bench/{label}/regression",
-                            f"первый замер {ratio:.3f}, повтор {ratio2:.3f} — шум",
+                            f"первый замер {ratio:.3f} ({ratio_metric}), "
+                            f"повтор {ratio2:.3f} — шум",
                         )
             rec["regression"] = status
         if "median_ms" in timings.get("oracle", {}) and "median_ms" in timings.get("current", {}):
