@@ -17,6 +17,8 @@
     (совпадение sha при разных путях — законная копия, помечается явно);
   * benchmark: warmup>=3, measure>=9, perf_counter вокруг subprocess.run,
     median/min/max + сырые samples, сравнение выходов вне timed-секции;
+    шесть случаев: small, brickbench, generated3000 (3052 строки — тот же
+    fixture, что и в сохранённом baseline t10), include, module, empty;
   * baseline для сравнительного режима обязателен: BP_BASELINE_BINARY или
     известный сохранённый артефакт с проверкой sha256. Отсутствие baseline —
     явный ненулевой код (это не skip).
@@ -592,14 +594,13 @@ def main(argv=None):
     report["targeted"] = targeted
 
     # ---------------- 3. Benchmark (сравнение выходов вне timed-секции) ----------------
-    gen_text = (
-        "' deterministic 3000-line valid input for verify_port\n"
-        + "\n".join(f"x{i} = {i}" for i in range(3000))
-        + "\n"
-    )
+    # Фикстуры-файлы (а не генерация в коде): те же входы, что в сохранённом
+    # baseline t10 (large/BrickBench.bp = 274 строки, large/Generated3000.bp =
+    # 3052 строки), поэтому baseline/current/oracle считаются на одном workload.
     bench_specs = [
         ("small", "small", "Test1.bp", None),
-        ("generated3000", "generated3000", "Generated3000.bp", gen_text),
+        ("brickbench", "large", "BrickBench.bp", None),
+        ("generated3000", "large", "Generated3000.bp", None),
         ("include", "include", "Main.bp", None),
         ("module", "module", "Main.bp", None),
         ("empty", "empty", "empty.bp", None),

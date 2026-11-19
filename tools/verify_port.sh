@@ -8,7 +8,8 @@
 #   * сборка СВЕЖЕГО текущего CLI в уникальном scratch (не stale tools/bp);
 #   * parity по корпусу (40 входов), include/module fixtures, ошибки по кодам;
 #   * намеренные отличия (empty-source newline, '..' include) проверяются явно;
-#   * benchmark small/Generated3000/include/module/empty;
+#   * benchmark: small, BrickBench, Generated3000 (3052 строки), include,
+#     module, empty — warmup 3 / 9 замеров, медианы baseline/current/oracle;
 #   * baseline Mojo обязателен: BP_BASELINE_BINARY или известный сохранённый
 #     артефакт t10 с проверкой sha256; отсутствие baseline — ненулевой exit.
 # JSON-отчёт остаётся в tests/.verify_port_work/<run>/report.json (gitignored).
