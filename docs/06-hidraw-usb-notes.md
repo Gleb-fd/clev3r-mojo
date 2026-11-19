@@ -58,7 +58,7 @@ direct-пакет:       [счётчик u16][0x00][globals u8][gb_hi/lb u8][б�
 
 | Команда | Код | Аргументы |
 |---|---|---|
-| `CREATE_DIR` | `0x9B` | путь C-строка (best-effort: каталог может существовать) |
+| `CREATE_DIR` | `0x9B` | путь C-строка; ответ — `00 SUCCESS` или `07 FILE_EXISTS`; **любой другой статус — fail-closed abort до BEGIN** (не best-effort) |
 | `BEGIN_DOWNLOAD` | `0x92` | `total u32 LE` + путь C-строка + первый кусок файла; ответ: статус + handle |
 | `CONTINUE_DOWNLOAD` | `0x93` | `handle u8` + срез файла; статус `0x00` OK / `0x08` END_OF_FILE |
 | direct `PROGRAM_START` | — | байткод `build_run_bytecode` (opFILE LOAD_IMAGE + opPROGRAM_START, globals=10) |
@@ -138,7 +138,9 @@ connect, handshake) теперь закрывают fd и завершаются
 неидемпотентных BEGIN/CONTINUE отключены сознательно (см. §2).
 
 1. Ответы BEGIN/CONTINUE_DOWNLOAD: реальные статус/handle, поведение при
-   существующем каталоге (CREATE_DIR может вернуть ошибку — сейчас best-effort).
+   существующем каталоге. Политика клиента уже fail-closed: `CREATE_DIR`
+   принимается только при `00 SUCCESS` или `07 FILE_EXISTS`, иначе заливка
+   прерывается до BEGIN (это проверено на заглушках, но не на прошивке кирпича).
 2. Запуск: хватает ли LOAD_IMAGE + PROGRAM_START, или GUI шлёт что-то ещё
    (сравнить с USB-дампом Clever при «Run»).
 3. Тайминги/ретраи на полном файле (~1 КБ — несколько CONTINUE-кадров).

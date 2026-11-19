@@ -8,13 +8,15 @@
 (коммит `906fc6913dd810470651641fce1ba1f82a4e112e`, рабочее дерево с
 пользовательскими изменениями — **не изменялось**). Порт — этот репозиторий.
 
-> **Главное.** На момент составления документа **сведённого (combined) прогона
-> ворот после интеграции всех патчей ещё не было**. Поэтому здесь нет и не может
-> быть утверждений вида «полный паритет», «всё проверено», «GUI/железо проверено».
-> Ниже разделены: (а) то, что реально измерено на baseline, (б) то, что доказано
-> автотестами в ветках патчей, (в) то, что установлено только чтением кода, (г) то,
-> что не проверено вовсе. Итоговые измерения и финальный статус ворот внесёт
-> интеграционный исполнитель после реального combined-прогона (§11).
+> **Главное.** Патчи интегрированы в `main` одной сведённой сборкой, и
+> combined-прогон ворот **выполнен** (2026-11-19 UTC):
+> `bash tools/verify_all.sh` → `VERIFY_ALL OK` (rc 0) и
+> `bash tools/verify_port.sh /home/ssssq/Projects/clev3r_linux/Clev3r-1` →
+> `VERIFY_PORT PASS` (rc 0). Поэтому статусы ниже — про **проверенное на
+> сведённой сборке**, а не про «ветки». При этом здесь по-прежнему нет и не может
+> быть утверждений вида «полный паритет языка», «GUI проверен», «железо
+> проверено»: границы утверждений — §8, §9, §11. Историческая таблица baseline
+> (§10.1) и итоговая таблица after (§10.2) разделены намеренно.
 
 ---
 
@@ -22,8 +24,8 @@
 
 | Статус | Что означает |
 |---|---|
-| **автотест (baseline)** | команда запускалась, результат зафиксирован в логах t10 (§2) на HEAD `8bf3621` |
-| **автотест (ветка, pending)** | тест существует и, по отчёту исполнителя ветки, проходит; в combined-прогон ещё не входил |
+| **автотест (baseline)** | команда запускалась на HEAD `8bf3621`, результат зафиксирован в логах t10 (§2) |
+| **автотест (integrated)** | тест входит в сведённую сборку и пройден в combined-прогоне `verify_all` (§7.1) |
 | **статически** | проверено чтением кода/сравнением с C#; исполнения не было |
 | **непроверено (GUI)** | требует живого Zed; недоступно в этой среде |
 | **непроверено (hardware)** | требует живого EV3 и кабеля/радиоканала |
@@ -67,10 +69,12 @@
 
 ### 2.1. Baseline и after — разные вещи
 
-* **Baseline** = HEAD `8bf3621`, бинарник `b37d4dfc…`. Все цифры §10 — это baseline.
-* **After** = сведённая сборка после интеграции патчей (§8). Замеров after **нет**.
-* Таблица в §10 помечена как исходная и не должна попадать в итоговый отчёт как
-  результат текущего порта.
+* **Baseline** = HEAD `8bf3621`, бинарник `b37d4dfc…`. Это §7 и таблица §10.1.
+* **After** = сведённая сборка после интеграции всех принятых патчей. Это §7.1,
+  §8 и таблица §10.2. Baseline-бинарник SHA-256 не менялся (тот же файл), C# DLL
+  тоже — их хеши в §2.
+* Итоговый JSON combined-прогона: `tests/.verify_port_work/run_*/report.json`
+  (gitignored).
 
 ### 2.2. Статус SDK/DLL — почему нет «свежей» сборки оракула
 
@@ -96,39 +100,41 @@
 | Файл | Строк | Роль | C#-соответствие | Проверка |
 |---|---:|---|---|---|
 | `src/bp/__init__.mojo` | 0 | пакет-маркер | — | не требует проверки |
-| `src/bp/util.mojo` | 106 | чтение/запись UTF-8, BOM, CRLF/LF/CR, пути, `usage` | `Program.cs:35,43`, `File.ReadAllLines`, `Path.*` | **автотест (ветка, pending)**: `util_test.mojo` (13f23b4 — 152 стр., 176d4a6 — +47) |
+| `src/bp/util.mojo` | 130 | чтение/запись UTF-8, BOM, CRLF/LF/CR, пути, `usage` | `Program.cs:35,43`, `File.ReadAllLines`, `Path.*` | **автотест (integrated)**: `util_test.mojo` (199 стр.) |
 | `src/bp/diag.mojo` | 53 | накопление и печать диагностик | `DataTemplates/Errore.cs`, `ErrorShow.cs` | статически |
-| `src/bp/json.mojo` | 610 | минимальный JSON-парсер/сериализатор для LSP | нет (новая функциональность) | статически + косвенно `lsp_test` |
-| `src/bp/lexer.mojo` | 788 | стадии 1–2: `LineBuilder` + `TokenBuilder` | `Utils/LineBuilder.cs`, `Utils/TokenBuilder.cs` | **автотест (baseline)**: `lexer_test` OK; точечные репро в VERDICTS A/C/D |
-| `src/bp/preproc.mojo` | 859 | include/import, `CreateFullPath`, модули | `Parsers/IncludeErrorParser.cs`, `ImportErrorParser.cs`, `Utils/Preprocessor.cs` | **автотест (ветка, pending)**: `preproc_test.mojo` (381 стр., e628834) + regression fixtures |
-| `src/bp/expand.mojo` | 2034 | развёртка BP → `~Имя.bp`, линковка | `Utils/Interpreter.cs`, `Utils/Linker.cs`, `Utils/MediaBuilder.cs` | **автотест (baseline)**: `difftest.sh expand` 43/0/1; чистый корпус 40/0/1; pending-правки e628834 |
+| `src/bp/json.mojo` | 638 | минимальный JSON-парсер/сериализатор для LSP | нет (новая функциональность) | **автотест (integrated)**: `json_test.mojo` (276 стр.) + `tools/tests/test_lsp.py` |
+| `src/bp/lexer.mojo` | 788 | стадии 1–2: `LineBuilder` + `TokenBuilder` | `Utils/LineBuilder.cs`, `Utils/TokenBuilder.cs` | **автотест (integrated)**: `lexer_test` OK |
+| `src/bp/preproc.mojo` | 938 | include/import, `CreateFullPath`, модули | `Parsers/IncludeErrorParser.cs`, `ImportErrorParser.cs`, `Utils/Preprocessor.cs` | **автотест (integrated)**: `preproc_test.mojo` (415 стр.) + `tests/regression/expansion/**` |
+| `src/bp/expand.mojo` | 2130 | развёртка BP → `~Имя.bp`, линковка | `Utils/Interpreter.cs`, `Utils/Linker.cs`, `Utils/MediaBuilder.cs` | **автотест (integrated)**: `difftest.sh expand` 40 pass/0 fail/1 known-skip; `preproc_test` (вкл. root-level путь) |
 | `src/bp/builtins.mojo` | 169 | имена/типы builtin-классов | `DataTemplates/DefaultObjectList.cs` | статически + сверка 284/284 в t10 (VERDICTS K) |
-| `src/bp/compiler3.mojo` | 3008 | стадия 3: сканер+компилятор → `.lmsb` | `Compiler/Scanner.cs`, `Compiler/Compiler.cs`, `Expression.cs`, `FunctionDefinition.cs` | **автотест (baseline)**: `difftest_lmsb` 46/46; **pending**: `compiler3_test.mojo` (13f23b4/176d4a6) |
+| `src/bp/compiler3.mojo` | 3078 | стадия 3: сканер+компилятор → `.lmsb` | `Compiler/Scanner.cs`, `Compiler/Compiler.cs`, `Expression.cs`, `FunctionDefinition.cs` | **автотест (integrated)**: `difftest_lmsb` 46/46 + `compiler3_test.mojo` (264 стр.) |
 | `src/bp/compiler3_resources.mojo` | 5176 | **generated**: тексты 33 `c_*.txt` как константы | `Compiler/Resources/c_*.txt` | generated, руками не правится; сверка хешей 33/33 в t10 |
-| `src/bp/asm.mojo` | 1776 | стадия 4: `.lmsb` → `.rbf` | `Assembler/*.cs` | **автотест (baseline)**: `difftest_rbf` 46/46; **pending**: `asm_test.mojo` (502 стр., 3fde3bc) |
-| `src/bp/buildcmd.mojo` | 126 | `bp compile` / `bp check` | `Builder.cs:79-140` | **автотест (baseline)**: `buildcmd_test` OK только с фикстурами (см. §9) |
-| `src/bp/flash.mojo` | 1118 | USB hidraw / BT / Wi-Fi, кадры, заливка | `Clever/Brick/Communication/EV3Connection*.cs`, `CleverDeploy/EV3Connection.cs` | **автотест (baseline)**: `flash_test` OK; e2e на заглушках; **hardware — непроверено**; pending 71982b3/63e6675 |
-| `src/bp/lsp.mojo` | 604 | LSP-сервер (stdio, JSON-RPC) | нет (новая функциональность; идеи из `Clever/Model/Intellisense`, но не порт) | **автотест (baseline)**: `lsp_test.mojo` (19 стр.) — только поднимает сервер до EOF; дефекты найдены ручными репро (`lsp_repro.json`), переработка — в ветке t16 (**pending**); **GUI — непроверено** |
-| `src/bp/main.mojo` | 163 | CLI-диспетчер команд | `InterpreterConsole/Program.cs` | **автотест (baseline)**: используется всеми гейтами; rc-дефекты подтверждены в VERDICTS E |
+| `src/bp/asm.mojo` | 1957 | стадия 4: `.lmsb` → `.rbf`, атомарная публикация | `Assembler/*.cs` | **автотест (integrated)**: `difftest_rbf` 46/46, `asm_test.mojo` (746 стр.), `tools/tests/test_asm_write.py` |
+| `src/bp/buildcmd.mojo` | 126 | `bp compile` / `bp check` | `Builder.cs:79-140` | **автотест (integrated)**: `buildcmd_test` OK на self-contained фикстурах |
+| `src/bp/flash.mojo` | 1223 | USB hidraw / BT / Wi-Fi, кадры, заливка | `Clever/Brick/Communication/EV3Connection*.cs`, `CleverDeploy/EV3Connection.cs` | **автотест (integrated)**: `flash_test` OK, `test_cli_flash.py` 93/93 strict; **hardware — непроверено** |
+| `src/bp/lsp.mojo` | 1156 | LSP-сервер (stdio, JSON-RPC) | нет (новая функциональность; идеи из `Clever/Model/Intellisense`, но не порт) | **автотест (integrated)**: `tools/tests/test_lsp.py` 15/15; `lsp_test.mojo` (21 стр.) — smoke; **GUI — непроверено** |
+| `src/bp/main.mojo` | 183 | CLI-диспетчер команд | `InterpreterConsole/Program.cs` | **автотест (integrated)**: используется всеми гейтами; rc-контракт — `test_cli_flash.py`/`test_asm_write.py` |
 
 Тесты в `src/bp/` (входят в дерево, не production):
 
 | Файл | Строк | Статус |
 |---|---:|---|
-| `lexer_test.mojo` | 473 | baseline OK |
-| `selftest.mojo` | 58 | baseline OK (с фикстурой; старый вариант читал `/home/ssssq/Windows/Program1.bp`) |
-| `buildcmd_test.mojo` | 42 | baseline OK только с подготовленными фикстурами |
-| `flash_test.mojo` | 318 | baseline OK |
-| `lsp_test.mojo` | 19 | baseline OK, но проверяет лишь «сервер стартует и доходит до EOF» (создаёт глобальный `/tmp/bp_lsp_docs` — см. §8.7) |
-| `util_test.mojo` | 199 | **ветка 13f23b4+176d4a6, pending** |
-| `compiler3_test.mojo` | 264 | **ветка 13f23b4+176d4a6, pending** |
-| `preproc_test.mojo` | 381 | **ветка e628834, pending** |
-| `asm_test.mojo` | 502 | **ветка 3fde3bc, pending** |
+| `lexer_test.mojo` | 473 | integrated OK |
+| `selftest.mojo` | 85 | integrated OK на своей фикстуре (`tools/tests/fixtures/selftest/`); внешний путь больше не нужен |
+| `buildcmd_test.mojo` | 79 | integrated OK с фикстурами (`BP_BUILDCMD_FIXTURES`) |
+| `flash_test.mojo` | 594 | integrated OK |
+| `lsp_test.mojo` | 21 | smoke: сервер стартует и доходит до EOF; глубокая проверка — `tools/tests/test_lsp.py` |
+| `util_test.mojo` | 199 | integrated OK |
+| `compiler3_test.mojo` | 264 | integrated OK |
+| `preproc_test.mojo` | 415 | integrated OK |
+| `asm_test.mojo` | 746 | integrated OK |
+| `json_test.mojo` | 276 | integrated OK (`JSON_TEST OK`) |
 
 ### 3.1. Ресурсы `src/bp/resources/c_*.txt`
 
-34 файла (204 КБ), все — байт-в-байт копии
-`Clev3r-1/Interpreter/Compiler/Resources/c_*.txt`. Перечень:
+34 файла: ≈110 КиБ содержимого (≈204 КиБ занято на диске блоками), все —
+байт-в-байт копии `Clev3r-1/Interpreter/Compiler/Resources/c_*.txt`
+(34/34 `cmp` OK против `cs_mirror`). Перечень:
 
 ```
 c_Assert      c_Buttons   c_Byte      c_EV3       c_EV3File   c_LCD
@@ -144,6 +150,8 @@ c_Text        c_Thread    c_Time      c_Vector    c_BitMask
   константой (нужен для `EV3.NativeCode`). `c_BitMask.txt` **не читается
   компилятором** — это справочная таблица масок моторов (`docs/03` §1); он
   намеренно не генерируется.
+* Итого констант в `compiler3_resources.mojo` — **33** (32 `readLibrary` +
+  `c_NativeCode`), не 34 и не 32.
 * Генератор: `tools/gen_compiler3_resources.py`; результат —
   `src/bp/compiler3_resources.mojo`. Константы — **generated**, ручные правки
   запрещены. В t10 сверены хеши всех 33 файлов; drift не найден.
@@ -170,28 +178,30 @@ Python-упаковки, к компилятору не относится).
 
 | Файл | Роль | Проверка |
 |---|---|---|
-| `install.sh` | `uv sync` + сборка `tools/bp` + smoke `bp check`; `--with-zed` | статически; запуск в этой среде не производился |
-| `tools/verify_all.sh` | «полная» проверка: сборка + юнит-тесты + difftest | baseline-версия 23 строки, **не** fail-closed; **pending** версия fd112e2 (145 стр.) |
-| `tools/difftest.sh` | стадии expand/lmsb/rbf против `tests/golden` | baseline: 43 pass / 0 fail / 1 skip (со сгенерированными входами) |
-| `tools/difftest_lmsb.sh`, `tools/difftest_rbf.sh` | два контура стадии 3/4 по 46 эталонам | baseline: 46/46 и 46/46; **известные дефекты гейта** (§9) |
-| `tools/make_golden.sh` | перегенерация эталонов оракулом | baseline: без `--apply` не меняет golden; **дефекты** (§9) |
+| `install.sh` | `uv sync` + сборка `tools/bp` + smoke `bp check`; `--with-zed` | статически; запуск в этой среде не производился (сетевые загрузки не выполнялись) |
+| `tools/verify_all.sh` | combined-ворота: сборка в уникальный scratch + все Mojo/Python-тесты + грамматика + golden-integrity + difftest | **integrated OK** (rc 0, `VERIFY_ALL OK`); `tools/bp` не перезаписывает |
+| `tools/difftest.sh` | стадии expand/lmsb/rbf против `tests/golden` | **integrated**: 40 pass / 0 fail / 1 known-skip на каждой стадии |
+| `tools/difftest_lmsb.sh`, `tools/difftest_rbf.sh` | два контура стадии 3/4 по 46 эталонам | **integrated**: 46/46 + rbf-контур 46/46; `pass==0`/вакуумный набор — FAIL |
+| `tools/make_golden.sh` | перегенерация эталонов оракулом | dry-run по умолчанию; `--apply` только при полном успехе; в combined **не запускался** |
 | `tools/gen_compiler3_resources.py` | генератор ресурсов | сверка «генерация не даёт git diff» в t10 |
-| `tools/install_zed_extension.sh` | установка dev-расширения Zed из пребилдов | baseline: ставит в `$HOME/.local/share/zed`, игнорирует XDG, rev `master`; **pending** 6e23cd0/677003d |
-| `tools/grammar/check_corpus.sh` | tree-sitter разбор корпуса | baseline: **false green** при нерабочем CLI; **pending** 6e23cd0 (fail-closed, rc 0/1/2/3) |
-| `tools/fake_ev3.py` | TCP :5555 заглушка кирпича | baseline: требует доработки эха (71982b3 делает это) |
+| `tools/install_zed_extension.sh` | установка dev-расширения Zed из пребилдов | **integrated**: XDG/`ZED_DATA_DIR`, `rev` из манифеста, режим index и symlink; `test_editor_install.py` 29/29 |
+| `tools/grammar/check_corpus.sh` | tree-sitter разбор корпуса | **integrated fail-closed**: rc 0/1/2/3, без npx; `TREE_SITTER_CLI=/bin/false` → rc 3 |
+| `tools/fake_ev3.py` | TCP :5555 заглушка кирпича | эхо команды + ctr/type/статус; используется `test_cli_flash.py` |
 | `tools/fake_ev3_serial.py` | pty-заглушка RFCOMM | то же |
 | `tools/probe_stdlib.mojo` | **исследовательский** пробник stdlib Mojo 1.1 | не часть продукта и не часть гейтов; читает `/home/ssssq/...` — в гейты не включать |
-| `tools/verify_port.sh` + `tools/port_verify.py` | **ветка fd112e2, pending**: живой C#-оракул, 40 входов, benchmark | автотест ветки: `VERIFY_PORT PASS` у исполнителя; в combined не входил |
-| `tools/tests/test_port.py` | **pending**: 18 негативных/позитивных тестов самих ворот | автотест ветки (t11 подтвердил 18/18) |
-| `tools/tests/test_cli_flash.py` | **pending**: CLI rc + TCP/pty e2e + негативы протокола | автотест ветки 71982b3+63e6675 |
-| `tools/tests/test_editor_install.py` | **pending**: XDG/manifest/rev/index-режим/symlink | автотест ветки 6e23cd0+677003d |
-| `tools/tests/fixtures/**` | **pending**: фикстуры гейтов (broken/empty/errors/include/module/selftest/small) | используются `verify_all`/`test_port` |
+| `tools/verify_port.sh` + `tools/port_verify.py` | живой C#-оракул, 41 вход корпуса, targeted/errors, benchmark 6 кейсов | **integrated PASS**; baseline — frozen-артефакт с проверкой SHA (self-alias — setup error) |
+| `tools/tests/test_port.py` | **40** негативных/позитивных тестов самих ворот | **integrated OK** (40/40), включая вакуумный корпус, чужой baseline, producer rc!=0 |
+| `tools/tests/test_cli_flash.py` | CLI rc + TCP/pty e2e + негативы протокола | **integrated OK** `passed=93 failed=0 skipped=0 strict=1` |
+| `tools/tests/test_editor_install.py` | XDG/manifest/rev/index-режим/symlink | **integrated OK** (29/29) |
+| `tools/tests/test_lsp.py` | LSP/JSON: изоляция tmp, URI, UTF-16, фрейминг, квадратичность | **integrated OK** (15/15) |
+| `tools/tests/test_asm_write.py` | атомарная публикация `.rbf` под RLIMIT_FSIZE/EACCES | **integrated OK**: rc!=0 + sentinel сохранён + нет новых outputs/temp |
+| `tools/tests/fixtures/**` | фикстуры гейтов (broken/empty/errors/include/large/module/selftest/small) | используются `verify_all`/`test_port`/`port_verify` |
 
 `grammar/`:
 
 | Файл | Роль | Проверка |
 |---|---|---|
-| `grammar/grammar.js` | исходник грамматики (530 стр.) | `check_corpus` (pending fail-closed) |
+| `grammar/grammar.js` | исходник грамматики (530 стр.) | `tree-sitter test` + `check_corpus` (fail-closed) |
 | `grammar/package.json`, `grammar/tree-sitter.json` | манифесты грамматики | статически (`tomllib`/`json` в zed README) |
 | `grammar/queries/{highlights,brackets,indents,outline}.scm` | запросы (4) | статически; копии в расширении сверяются глазами |
 | `grammar/test/corpus/basic_plus.txt` | корпус грамматики (214 стр.) | `tree-sitter test` — отдельно, не в `check_corpus` |
@@ -230,10 +240,16 @@ Python-упаковки, к компилятору не относится).
   `New_Path_Examples/Modules/Module{1,2}.bpm`, а также медиа-фикстуры
   `Other/GraphicsAndSounds/emerald.rsf`, `yamyam.rgf`.
 * `tests/golden` — **46** каталогов `~<Имя>/` с `.lmsb` + `.rbf` + `~<Имя>.bp`.
-  Из них 3 — **вложенные повторные развёртки** (`Functions/~Test1/~~Test1`,
-  `Other/~Battery/~~Battery`, `Other/~ButtonsAndMotors/~~ButtonsAndMotors`).
+  Это **40 верхнеуровневых + 6 вложенных** повторных развёрток (два уровня по 3):
+  `Functions/~Test1/~~Test1`, `Functions/~Test1/~~Test1/~~Test1`,
+  `Other/~Battery/~~Battery`, `Other/~Battery/~~Battery/~~Battery`,
+  `Other/~ButtonsAndMotors/~~ButtonsAndMotors`,
+  `Other/~ButtonsAndMotors/~~ButtonsAndMotors/~~ButtonsAndMotors`.
   Поэтому «46/46» — это 46 **каталогов эталонов**, а не 46 независимых программ;
-  независимых входов с эталоном — 40 (плюс 1 намеренный skip).
+  независимых входов с эталоном — **40** (плюс 1 намеренный skip).
+  `verify_all` проверяет именно такое разложение: 46 = 40 + 6, 46 `.lmsb`,
+  46 `.rbf`; уменьшение набора (например, после `make_golden --apply`, который
+  теряет вложенные `~~X`) — FAIL, а не «новый согласованный набор».
 * `New_Path_Examples/Program1.bp` — **известный skip**: у оракула нет эталона из-за
   его собственного бага с путями (`tests/golden_report.txt`). Это не «зелёный» тест.
 * `tests/golden_report.txt` — исторический отчёт `make_golden.sh` (43 ok, 1 fail).
@@ -280,13 +296,35 @@ Python-упаковки, к компилятору не относится).
 Ограничения этого набора прямо перечислены в `GATES.md`: `difftest*` считают
 сгенерированные `~*.bp` входами (43 вместо 40 на чистом корпусе) и **не проверяют
 коды возврата стадий** в baseline-версии — устаревшие артефакты могут маскировать
-провал. Именно это ремонтирует ветка fd112e2.
+провал. Именно это исправлено в интегрированной версии ворот (§7.1).
+
+### 7.1. Combined-прогон на сведённой сборке (after)
+
+Выполнен на интегрированном `main` (все принятые патчи в одном дереве), CLI
+собран в уникальный scratch, а не в `tools/bp`:
+
+| Команда | rc | Результат |
+|---|---:|---|
+| `bash tools/verify_all.sh` | **0** | `VERIFY_ALL OK`; 10 Mojo-тестов + 4 Python-хука + `test_port` (40) + grammar (50/50 clean, `tree-sitter test`) + golden 46 (40+6) + difftest 40/0/1 + 46/46 + 46/46 |
+| `bash tools/verify_port.sh /home/ssssq/Projects/clev3r_linux/Clev3r-1` | **0** | `VERIFY_PORT PASS`: corpus 40 pass/1 intentional/0 fail, targeted include/module/errors OK, benchmark 6 кейсов + parity |
+| `git diff --check` | 0 | пробелов/маркеров конфликтов нет |
+| `python3 tools/tests/test_port.py` | 0 | `Ran 40 tests ... OK` |
+| `BP_CLI_FLASH_STRICT=1 python3 tools/tests/test_cli_flash.py` | 0 | `passed=93 failed=0 skipped=0 strict=1` |
+| `python3 tools/tests/test_lsp.py` | 0 | `test_lsp: OK (15/15)` |
+| `python3 tools/tests/test_editor_install.py` | 0 | `Ran 29 tests ... OK` |
+| `python3 tools/tests/test_asm_write.py` | 0 | `ASM WRITE OK` (rc!=0 + sentinel/нет outputs/нет temp) |
+| `TREE_SITTER_CLI=/bin/false tools/grammar/check_corpus.sh <file>` | **3** | fail-closed (нельзя получить зелёный без работающего парсера) |
+
+Что этим **не** доказано: GUI Zed, WASM-хост и живой EV3 (нет среды/железа);
+полный паритет языка (missing features — §8); свежая сборка C# из исходников
+(нет SDK — используется существующий DLL с `DOTNET_ROLL_FORWARD=LatestMajor`).
 
 ---
 
-## 8. Статусы исправлений (что принято, что pending)
+## 8. Статусы исправлений (интегрировано)
 
 Ниже — по каждой группе патчей: суть, доказательство, что **нельзя** утверждать.
+Все перечисленные группы уже влиты в `main` и пройдены combined-прогоном (§7.1).
 
 ### 8.1. Unicode/числа: `13f23b4` + `176d4a6` — **принято**
 
@@ -317,7 +355,7 @@ Python-упаковки, к компилятору не относится).
 (байтовые колонки, UTF-16LE/BE автодетект) — вход документирован как UTF-8;
 локализованные тексты `ErrorsCodeList` — **missing feature**.
 
-### 8.2. Ассемблер: `3fde3bc` — **reviewed**
+### 8.2. Ассемблер: `3fde3bc` + `cceac61` + `7abcada` — **интегрировано**
 
 * `assemble_file` больше не пишет `.rbf` при любой ошибке разбора/интеграции:
   образ собирается в памяти (`build_output`), файл пишется только при пустом
@@ -326,11 +364,25 @@ Python-упаковки, к компилятору не относится).
 * Тест `asm_test.mojo` — регрессии на bad opcode/unknown id/unclosed object/
   missing label/subcall/bad directive/sentinel, границы кодирования констант,
   метки назад/вперёд, квирк `UI_DRAW TEXTBOX = 84 81 20`.
-* `t15` (атомарная запись на уровне ОС) — **pending**; **нельзя** заявлять
-  устойчивость к отключению питания / полную durability.
+* Публикация `.rbf` атомарна: временный файл в каталоге цели (`mkstemp`),
+  `pwrite` всех байт, `fchmod`, `fsync`, `close`, затем `rename`; любой сбой до
+  `rename` удаляет временный файл и оставляет старый `.rbf` побайтно прежним.
+  `tools/tests/test_asm_write.py` на реальной golden-программе (1957 Б) под
+  `RLIMIT_FSIZE` (0/1/512/1024) проверяет **rc != 0**, сохранённый sentinel
+  (2057 Б), отсутствие нового `.rbf` и отсутствие `.tmp`-файлов; при 2000/4096 —
+  rc 0 и побайтное равенство эталону. Permission-сценарии (read-only каталог,
+  файл 0444) реально выполняются при euid != 0 (в этой среде euid 1000).
+* `rename` меняет inode: жёсткие ссылки на старый файл продолжают указывать на
+  старый inode; владелец/группа/ACL/xattr **не переносятся**; режим (mode)
+  восстанавливается `fchmod`; symlink-цель явно отклоняется. Отдельного
+  ACL-фреймворка нет — это осознанная цена атомарности.
+* **Нельзя** заявлять устойчивость к отключению питания: каталог не fsync'ится.
+* Портабельность: код без raw syscall и без чтения `struct stat` кроме `st_mode`,
+  но **тестирован только Linux x86-64**; macOS/ARM не проверялись и не
+  заявляются.
 * Квирк комментария одиночным `/` совпадает с C# — **не менялся**.
 
-### 8.3. expand/preproc: `e628834` — **pending review**
+### 8.3. expand/preproc: `e628834` + integration-фикс root-level — **интегрировано**
 
 * Bare-имя входа больше не резолвит include/import от `/`: `run_expansion`
   принимает необязательный `project_dir` (реальный родитель файла), как
@@ -344,10 +396,15 @@ Python-упаковки, к компилятору не относится).
   `/` и корректно резолвит `Devices/../Sensors`, C# теряет ведущий `/`. Фикс не
   откатывать. Но: интерьерный `..` проверен **не полностью** — **нельзя**
   утверждать «все пути корректны».
+* Root-level абсолютный вход: `resolve_project_path("/Main.bp", "")` возвращает
+  `/`, а не `./` (`dir_name("/Main.bp") == ""`, но реальный родитель — корень
+  ФС, как `FileInfo.DirectoryName` в C#). Регрессия в `preproc_test` проверяет
+  контракт чисто (без записи в корень); голое имя, `./`, подкаталог и явный
+  `project_dir` не изменились.
 * Полные `ModuleErrorParser`/`StructErrorParser` и каталог имён **не портированы**:
   остаются пробелы валидации. **Нельзя** называть это full parity.
 
-### 8.4. CLI/flash: `71982b3` + `63e6675` — **pending review**
+### 8.4. CLI/flash: `71982b3` + `63e6675` + `9da6d30` — **интегрировано**
 
 * Реальный system-reply: `[ctr u16][type 0x03|0x05][эхо команды][статус][payload]`,
   минимум **5** байт, payload с **offset 4** (C#: `EV3Connection.cs:66-117`,
@@ -365,10 +422,18 @@ Python-упаковки, к компилятору не относится).
   `help`/`-h`/`--help` и запуск без аргументов → usage + 0; `check` batа — 1.
 * `docs/06` §2 в старом виде давал узкое (и вводящее в заблуждение) отображение
   ответа; исправлено на формат с эхом.
+* CREATE_DIR — **fail-closed**, а не best-effort: принимается только `00 SUCCESS`
+  или `07 FILE_EXISTS`, любой другой статус/чужое эхо/обрезка/молчание — abort до
+  BEGIN (с заливкой ничего не отправлено). `03 FILE_EXISTS` не считается успехом.
+* Провода: счётчик команд — **u16**; ошибки использования CLI (`missing operand`)
+  → rc != 0; `help`/`-h`/`--help`/без аргументов → rc 0.
+* `test_cli_flash.py` проходит в strict-режиме: `passed=93 failed=0 skipped=0
+  strict=1`; `verify_all` запускает его с `BP_CLI_FLASH_STRICT=1` и принимает
+  только такую сводку.
 * **Hardware — непроверено.** Заглушки доказывают алгоритм кадров, а не реальный
-  обмен с кирпичом.
+  обмен с кирпичом; USB/Bluetooth на живом EV3 не проверялись.
 
-### 8.5. Грамматика/инсталлер: `6e23cd0` + `677003d` — **accepted**
+### 8.5. Грамматика/инсталлер: `6e23cd0` + `677003d` — **интегрировано**
 
 * `check_corpus.sh` fail-closed: rc 0/1/2/3, без скачивания зависимостей,
   разрешает относительные аргументы из любого cwd, работает из каталога
@@ -379,7 +444,12 @@ Python-упаковки, к компилятору не относится).
   `lib.version` — полная SemVer из `Cargo.lock` (`0.7.0`), без выдуманного
   диапазона `0.7`.
 * Исходник `grammar/` и пребилды Rust **не изменялись**.
-* **Не проверено:** реальный Zed GUI и WASM-хост (сборка/загрузка расширения).
+* Проверено в combined: `tools/grammar/check_corpus.sh` на корпусе — 50 файлов,
+  50 clean, 0 ERROR/MISSING, 0 CLI failures; `cd grammar && tree-sitter test` OK;
+  `TREE_SITTER_CLI=/bin/false` и несуществующий CLI → rc 3 (не ложный зелёный);
+  `test_editor_install.py` — 29/29 OK.
+* **Не проверено:** реальный Zed GUI и WASM-хост (сборка/загрузка расширения) —
+  только ручная проверка, воротами не покрывается.
 * **Риск, задокументированный, а не устранённый:** index.json заменяется
   сериализованно; параллельная запись Zed может потерять обновление. Установку
   выполнять при закрытом Zed / эксклюзивно; гарантий конкурентности нет.
@@ -387,55 +457,71 @@ Python-упаковки, к компилятору не относится).
 * Инсталлер использует `tomllib` → требует **Python ≥ 3.11** (в проекте
   `pyproject.toml` — `>=3.14`); **не** обещать работу на старых python.
 
-### 8.6. Ворота/харнесс: `fd112e2` — **pending repair (t18)**
+### 8.6. Ворота/харнесс: `fd112e2` + `7b5bd0d` + integration-фиксы — **интегрировано**
 
-* Fail-closed: свежий уникальный scratch, проверка rc стадий, копия корпуса без
-  `~`-каталогов, явный allowlist известного `'..'`-кейса, падение при
-  неожиданных/пропавших эталонах, без «пустого» pass.
+* `verify_all.sh`: собирает CLI в **уникальный** scratch (не в `tools/bp`),
+  экспортирует `BP_BINARY`; отсутствие любого теста — `FAIL("MISSING")`, а не
+  молчаливый skip; проверяет rc каждой стадии и вызывает все Mojo-тесты
+  (`lexer/util/compiler3/preproc/asm/json/lsp`), `selftest`, `flash_test`,
+  `buildcmd_test`, все Python-хуки (`test_port`, `test_cli_flash`,
+  `test_editor_install`, `test_lsp`, **обязательный** `test_asm_write`),
+  грамматику и golden-integrity.
+* `test_cli_flash` запускается с `BP_CLI_FLASH_STRICT=1`; wrapper принимает толькo
+  фактическую сводку `passed=… failed=… skipped=… strict=1` при `failed=0
+  skipped=0` и строке `CLI_FLASH_TEST OK`; отсутствие сводки (fake success) — FAIL.
 * `make_golden.sh`: staging в temp, dry-run по умолчанию, `--apply` только после
-  полного успеха, старый golden сохраняется/восстанавливается.
-* `verify_port.sh`: живой C#-оракул, 40 входов, include/module,
-  коды ошибок, намеренные отличия (empty newline, `'..'`), benchmark
-  baseline/current/oracle (warmup 3, 9 замеров, median/min/max, сырые выборки,
-  повтор при регрессии >10%).
-* `verify_all.sh` (pending) связывает все Mojo- и Python-хуки + грамматику;
-  отсутствующий тест — явный `FAIL("MISSING")`, а не skip.
-* Известные дефекты t11 (adversarial review) **требуют починки до финального
-  combined-прогона**: `difftest_lmsb` без `pass>0` guard и вакуумный rbf-контур;
-  `make_golden` игнорирует rc оракула; `buildcmd_test` печатает FAIL, но
-  возвращает 0; `port_verify.py` жёстко ждёт `b"\n"` для пустого входа (после
-  фикса e628834 нужен `b""` или флаг); self-comparison baseline не отвергается;
-  `verify_all` собирает в общий `tools/bp` (гонка двух прогонов).
-* Текущие цифры для будущего отчёта: **40 валидных независимых входов + 1
-  известный skip**; 46 эталонных каталогов включают вложенные повторные развёртки
-  — это **не** 46 независимых программ. `ALL GOLDEN PRESERVED` (без `--apply`).
-* Baseline-контракт `port_verify`: требует **явный** `BP_BASELINE_BINARY`
-  (и/или известный run + SHA), иначе ненулевой exit; общего обещания «любой
-  будущий клон найдёт baseline» нет — артефакт baseline gitignored (§11).
+  полного успеха и `rc==0` оракула, старый golden сохраняется/восстанавливается.
+* `difftest_lmsb.sh`/`difftest_rbf.sh`: `pass==0` или вакуумный rbf-контур — FAIL;
+  отсутствие `.lmsb`/`.rbf`-оракула у сверяемого входа — FAIL (не skip).
+* `port_verify.py`: пустой вход — exact `b""` и у current, и у оракула;
+  `b"\n"` разрешён **только** для старого baseline и классифицируется как
+  `known-prefix-newline-only-baseline`. Это **не** намеренное отличие текущего
+  порта: это зафиксированный PRE-fix дефект baseline (`e628834` его исправил).
+  Любой другой пустой mismatch — FAIL.
+* `port_verify.py`: self-comparison (baseline = current по пути) — setup error
+  (rc 2); отсутствие baseline/фикстур/оракула — setup error без traceback.
+* `verify_port.sh`: живой C#-оракул (существующий DLL, SDK не нужен), 41 вход
+  корпуса (40 pass + 1 intentional), include/module/errors, benchmark
+  baseline/current/oracle: **6 кейсов** (small, BrickBench, Generated3000 — 3052
+  строки, include, module, empty), warmup 3 / 9 замеров, median/min/max + сырые
+  выборки, повтор при регрессии >10% (§10.2).
+* Дефекты t11 закрыты и подтверждены `tools/tests/test_port.py` (40 тестов):
+  `difftest_lmsb` pass>0 guard и не-вакуумный rbf-контур; `make_golden` rc
+  оракула; `buildcmd_test` → rc!=0 при семантическом FAIL; exact-empty;
+  self-alias; setup-ошибки rc 2; уникальный scratch.
+* **Границы:** baseline-артефакт gitignored; `verify_port` по умолчанию ищет
+  известный сохранённый run t10 с проверкой SHA-256, при его отсутствии —
+  ненулевой exit с требованием `BP_BASELINE_BINARY`. Обещания «любой будущий
+  клон найдёт baseline» нет.
 
-### 8.7. LSP: ветка `t16` от `e628834` — **в работе, pending**
-
-Заявленный объём (по описанию ветки, не по combined-прогону):
+### 8.7. LSP/JSON: `b580bcc` + `6342e28` — **интегрировано**
 
 * приватный process-temp каталог вместо общего `/tmp/bp_lsp_docs`;
-* include резолвится относительно реального URI документа;
-* `id: null` даёт валидный JSON;
-* hover считает позиции в UTF-16;
-* ошибки I/O публикуются явно, а не «пустым» списком;
-* anchor раскрытых диагностик — 0 (честная строка, не выдуманная);
-* фрейминг: тело ≤ 16 MiB, глубина JSON ≤ 128.
+  include резолвится относительно реального URI документа;
+  `id: null` даёт валидный JSON; hover считает позиции в UTF-16;
+  ошибки I/O публикуются явно, а не «пустым» списком; anchor раскрытых
+  диагностик — 0 (честная строка, не выдуманная);
+  фрейминг: тело ≤ 16 MiB, глубина JSON ≤ 128.
+* `file://` URI percent-escape корректен (localhost и remote-хосты
+  отвергаются по правилам).
+* JSON-арена: append детей O(1) — квадратичность `JSON_link_child` устранена;
+  тест на широких/вложенных фреймах: массив 204798 Б = ≈0.10 с, объект 122878 Б
+  = ≈0.005 с (линейно, не >15 с). Подозрение на квадратичность `json_dump` —
+  **опровергнуто**: отдельного дефекта нет, правки не потребовались.
+* `json_test.mojo` — `JSON_TEST OK`; `tools/tests/test_lsp.py` — 15/15 OK
+  (изоляция tmp двумя процессами, URI, UTF-16, framing fail-closed,
+  анализ-ошибка не «чисто», без внутренних путей).
+* Completion берётся из **31** ключевого слова + **31** builtin-класса
+  (`grammar/grammar.js` — источник истины).
 
 **Ещё не сделано / нельзя утверждать:**
 
-* `definitionProvider` **не реализован** — убрать из README «переходы»;
-* `zed-extension/README.md` со словами «lsp — заглушка» **устарел** (в `main.mojo`
-  вызов `cmd_lsp` уже есть);
-* если в настройках указывается сервер, используется поле `arguments`
-  (у `Command` в `lib.rs` — `args`), не `args`;
+* `definitionProvider` **не реализован** — переходы к определению в Zed не
+  заявляются;
+* GUI Zed и WASM-хост — **только ручная проверка**, воротами не покрыты;
 * готовых хоткеев в репозитории нет: `.zed/tasks.json` и
   `zed-extension/tasks.json` — **задачи**, а не привязки клавиш; привязку делает
-  пользователь в своём `keymap.json`;
-* GUI Zed и WASM-хост — **только ручная проверка**.
+  пользователь в своём `keymap.json`.
 
 ---
 
@@ -443,60 +529,108 @@ Python-упаковки, к компилятору не относится).
 
 | Утверждение | Можно? | Почему |
 |---|---|---|
-| «Движок компиляции совпадает с оракулом на корпусе» | да, для 40 независимых входов baseline | `clean_baseline.json`: 40/0/1, а также 46/46 по эталонным каталогам |
-| «43 pass» | только как «43 входа, включая сгенерированные» | baseline-`difftest` считает `~*.bp` |
-| «46 независимых программ» | **нет** | 46 — число каталогов эталонов; 3 из них вложенные повторные развёртки |
+| «Движок компиляции совпадает с оракулом на корпусе» | да, для 40 независимых входов | `verify_port`: corpus 40 pass / 1 intentional / 0 fail; `difftest` 40/0/1 |
+| «43 pass» | только как историческое «43 входа, включая сгенерированные» | baseline-`difftest` считал `~*.bp`; интегрированный гейт даёт 40/0/1 |
+| «46/46 по эталонам» | да, с оговоркой | 46 = 40 верхнеуровневых + 6 вложенных вариантов; оба контура (lmsb и rbf) 46/46 |
+| «46 независимых программ» | **нет** | 46 — число каталогов эталонов; 6 из них вложенные (два уровня по 3) |
 | «полный паритет» | **нет** | §8.1/8.3: missing validators, каталог ошибок, кодировки |
-| «GUI/Zed проверен» | **нет** | нет живого Zed |
-| «железо проверено» | **нет** | нет EV3 |
-| «все тесты зелёные» | **нет** | combined-прогона не было; часть тестов в ветках |
+| «GUI/Zed проверен» | **нет** | нет живого Zed; есть только hermetic-тесты инсталлера |
+| «железо проверено» | **нет** | нет EV3; USB/BT/Wi-Fi — только заглушки |
+| «все тесты зелёные» | да, **для combined-прогона** | `VERIFY_ALL OK` + `VERIFY_PORT PASS` (§7.1); но не покрывает GUI/железо/cross-OS |
+| «все функции быстрее» | **нет** | §10.2: выигрыш к C# на всех 6 кейсах, но current vs baseline в пределах шума (±9%) |
 
 ---
 
-## 10. Исходные измерения baseline (НЕ after)
+## 10. Измерения
 
-Источник: `logs/measurements.json` (warmup 3, 9 замеров, медианы), машина одна.
+Обе таблицы сняты на одной машине (Linux x86-64), одним и тем же способом:
+warmup 3, 9 замеров, `perf_counter` вокруг `subprocess.run`, выходы удаляются
+перед каждым прогоном, сравнение байтов — вне timed-секции.
 
-| Кейс | Mojo, мс | C# оракул, мс | Отношение | Паритет `.lmsb`/`.rbf`/`~.bp` |
+### 10.1. Исторический baseline-сеанс t10 (НЕ after, для сравнения не используется)
+
+Источник: `tests/.oracle_work/t10_20261118T100051/logs/measurements.json`.
+
+| Кейс | Mojo baseline, мс | C# оракул, мс | Отношение | Паритет `.lmsb`/`.rbf`/`~.bp` |
 |---|---:|---:|---:|---|
 | small_Test1 | 21.79 | 305.46 | 14.0× | да/да/да |
 | large_BrickBench | 35.69 | 318.31 | 8.9× | да/да/да |
 | large_Generated3000 (3052 строки) | 104.02 | 598.75 | 5.8× | да/да/да |
 | include_Main | 21.93 | 267.17 | 12.2× | да/да/да |
 | module_Main | 21.89 | 276.38 | 12.6× | да/да/да |
-| startup_empty | 20.58 | 204.04 | 9.9× | да/да/**нет** (`\n` vs 0 байт — известное отличие, фикс e628834) |
+| startup_empty | 20.58 | 204.04 | 9.9× | да/да/**нет** (`b"\n"` vs `b""` — PRE-fix дефект baseline, исправлен интегрированным `e628834`) |
 
-Как читать: это **исходный** (baseline) срез до интеграции. `empty` показывает
-именно тот дефект, который чинит ветка e628834; после интеграции значение
-`~.bp` должно стать равным.
+Абсолютные числа этого сеанса **несопоставимы** с §10.2: вся машина в том
+сеансе была медленнее (например, C# на small — 305 мс против 129 мс сейчас).
+Поэтому в §10.2 все три инструмента перемерены заново в одном сеансе.
 
-Данные харнесса `tools/port_verify.py` из ветки fd112e2 (`tests/.verify_port_work/run_*/report.json`,
-gitignored) — **не** combined-after и в этот документ как результат не переносятся.
+### 10.2. Combined after: baseline / current / C# (warmup 3, 9 замеров)
 
-### Итоговые измерения: ещё не проведены
+Источник: `tests/.verify_port_work/run_20261119T091514Z_3415234/report.json`
+(combined `verify_port`, `VERIFY_PORT PASS`). `baseline` — frozen-бинарник
+`b37d4dfc…` (SHA-256 проверен), `current` — свежая сборка интегрированного
+`main` в scratch, `oracle` — существующий `InterpreterConsole.dll` (`39d03dfa…`)
+с `DOTNET_ROLL_FORWARD=LatestMajor` (SDK в среде нет — свежая сборка C# **не**
+доказывается).
 
-Сведённая таблица «baseline → after» с финальными числами будет внесена
-интеграционным исполнителем **после реального combined-прогона**
-`bash tools/verify_port.sh /home/ssssq/Projects/clev3r_linux/Clev3r-1` на
-интегрированном дереве. До этого любые «финальные» цифры в README/отчётах
-недопустимы.
+| Кейс | baseline, мс | current, мс | C#, мс | current/baseline | C#/current | Паритет current vs C# |
+|---|---:|---:|---:|---:|---:|---|
+| small (Test1) | 21.44 | 22.70 | 128.65 | 1.059 | 5.67× | равен |
+| BrickBench (274 стр.) | 29.84 | 31.85 | 136.14 | 1.068 | 4.27× | равен |
+| Generated3000 (3052 стр.) | 56.58 | 56.64 | 255.85 | 1.001 | 4.52× | равен |
+| include (Main + 2 `.bpi`) | 21.51 | 22.71 | 120.65 | 1.056 | 5.31× | равен |
+| module (Main + `.bpm`) | 22.49 | 21.93 | 132.98 | 0.975 | 6.06× | равен |
+| empty (старт) | 20.55 | 22.37 | 89.19 | 1.088 | 3.99× | равен (exact `b""` у current и C#) |
+
+Где исходные samples/median/min/max: `benchmark.<case>.timings.*` в
+`report.json`.
+
+Как читать честно:
+
+* Порядок величин: Mojo-порт быстрее C#-оракула в **4.0–6.1×** на всех шести
+  кейсах этого замера, а не «во сколько-то раз по одному удачному запуску»:
+  это медианы по 9 замерам после 3 прогревочных.
+* **Нельзя** говорить «всё ускорилось»: current vs baseline — от −2.5% (module)
+  до +8.9% (empty), т.е. в пределах шума этого сеанса; регрессий >10% не
+  зафиксировано (`regression: ok` у всех кейсов).
+* `current == C#` по sha256 всех выходов на всех шести кейсах (включая `.lmsb`,
+  `.rbf`, `~.bp`); для `empty` — exact `b""`.
+* Старый baseline отличается от current только `~empty.bp` (`b"\n"` vs `b""`) —
+  это PRE-fix дефект, а не намеренное отличие текущего порта.
+* Бенчмарк ничего не «тюнил»: никаких спекулятивных оптимизаций в этой
+  интеграции не делалось.
 
 ---
 
-## 11. Что должен сделать интеграционный исполнитель
+## 11. Что сделано при интеграции и что осталось за границей
 
-1. Интегрировать ветки в согласованном порядке и получить **одну** сведённую
-   сборку; прогнать `bash tools/verify_all.sh` (fail-closed версия).
-2. Починить дефекты харнесса из t11 (§8.6), включая ожидание пустого выхода
-   (`b""`) после фикса e628834.
-3. Прогнать `bash tools/verify_port.sh /home/ssssq/Projects/clev3r_linux/Clev3r-1`
-   с явным `BP_BASELINE_BINARY` (SHA `b37d4dfc…`) — и получить `report.json`.
-4. Обновить §10 этого документа **фактическими** after-цифрами и §8 — снять
-   пометки `pending` у принятых патчей и LSP.
-5. Проверить `git diff --check` (пробелы) и отсутствие изменений в
-   golden/config/коде при документационной правке.
-6. Не менять `rev` грамматики и не выдавать GUI/железо за проверенные без
-   ручного прогона.
+Сделано (combined-прогон — §7.1):
+
+1. 16 принятых коммитов интегрированы в `main` в порядке зависимостей
+   (16 отдельных cherry-pick, без конфликтов); карта old→new — в постоянном
+   отчёте интеграции `tests/.verify_port_work/`.
+2. Починены дефекты харнесса (§8.6) и integration-дефекты: root-level
+   `resolve_project_path` (§8.3), grammar-hook cwd/fail-closed в `verify_all`,
+   strict-summary `test_cli_flash`, обязательные `json_test`/`preproc_test`/
+   `test_asm_write.py`, честный учёт golden 40+6, `test_asm_write` с rc!=0.
+3. `bash tools/verify_all.sh` → rc 0, `bash tools/verify_port.sh
+   /home/ssssq/Projects/clev3r_linux/Clev3r-1` → rc 0 (frozen baseline найден по
+   умолчанию и проверен по SHA-256), `git diff --check` → 0.
+4. §10 содержит **фактические** after-цифры, §8 — без пометок `pending`.
+5. golden/исходный C#/baseline-бинарник не изменялись; `make_golden --apply`
+   не запускался.
+
+**Что осталось за границей (и не должно заявляться как проверенное):**
+
+* живой EV3 (USB/Bluetooth/Wi-Fi), реальный Zed GUI и WASM-хост;
+* macOS/ARM и Windows-нативно (тестировано только Linux x86-64);
+* свежая сборка C# из исходников (нет SDK — только существующий DLL);
+* полный паритет языка: непортированные валидаторы, `ErrorsCodeList`,
+  кодировки C# кроме UTF-8, `definitionProvider`;
+* параллельная запись `index.json` установщиком и открытым Zed (гонка не
+  устранена, только задокументирована).
+
+Полный паритет и «всё проверено» по-прежнему **не** заявляются.
 
 Как предоставить baseline, если артефакт `b37d4dfc…` недоступен: собрать
 бинарник из чистого коммита `8bf3621` (`uv run mojo build src/bp/main.mojo -o
