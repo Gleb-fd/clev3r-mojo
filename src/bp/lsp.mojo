@@ -63,7 +63,7 @@ comptime LSP_MAX_BODY = 16 * 1024 * 1024  # 16 MiB на тело JSON-RPC
 comptime LSP_DIAG_ANALYSIS = 9000  # серверная ошибка анализа, не «чисто»
 comptime LSP_STAGE3 = 3000  # маркер стадии 3 (как в buildcmd)
 
-# KEYWORDS (30) и BUILTIN_CLASSES (31) — дословно из grammar/grammar.js.
+# KEYWORDS (31) и BUILTIN_CLASSES (31) — дословно из grammar/grammar.js.
 comptime LSP_KEYWORDS = (
     "for endfor if then endif else elseif while endwhile and or sub endsub "
     "goto step to import include folder in out function endfunction number "

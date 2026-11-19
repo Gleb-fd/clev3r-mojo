@@ -1914,12 +1914,19 @@ def resolve_project_path(path: String, project_dir: String) -> String:
     Program.cs:35/43 (fi.DirectoryName). Голое имя `Main.bp` даёт dir_name ""
     -> "." (без этого прежний код давал "/" и include/import искались от корня
     ФС — подтверждённый дефект G/Additional-1).
+
+    Абсолютный вход в корне ФС (`/Main.bp`) — отдельный случай: dir_name тоже
+    "", но реальный родитель здесь "/", а не текущий каталог. C# FileInfo даёт
+    DirectoryName == "/"; поэтому сохраняем "/" (integration-фикс t32).
     """
     var base = project_dir
     if base == "":
         base = dir_name(path)
         if base == "":
-            base = "."
+            if path.startswith("/"):
+                base = "/"
+            else:
+                base = "."
     if base != "" and not base.endswith("/"):
         base = base + "/"
     return base^

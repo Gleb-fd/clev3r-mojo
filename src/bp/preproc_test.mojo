@@ -7,6 +7,7 @@
 Покрытие (каждый кейс — подтверждённый дефект из t10 VERDICTS.md):
   G/Additional-1  голое имя `Main.bp` -> include/import от реального родителя,
                   а не от "/" (C# Program.cs:35/43, fi.DirectoryName);
+  root-level      "/Main.bp": dir_name пуст, но реальный родитель "/" (не "./");
   LSP-API         необязательный 4-й параметр run_expansion project_dir;
   G/ModuleError   1809: дубликат функции нулевой арности в .bpm; различные
                   перегрузки и валидные модули не отвергаются;
@@ -22,7 +23,7 @@
 
 from std.python import Python
 
-from bp.expand import Ctx, cmd_expand, run_expansion
+from bp.expand import Ctx, cmd_expand, resolve_project_path, run_expansion
 from bp.lexer import build_line
 from bp.preproc import bracket_error_code, create_full_path
 from bp.util import read_lines, write_text
@@ -106,6 +107,38 @@ def test_bare_and_relative_input() raises:
         check(_joined(texts3) == body, "абсолютный Main.bp: та же развёртка")
     finally:
         _chdir(old_cwd)
+
+
+# ---------------------------------------------------------------------------
+# root-level абсолютный вход: "/Main.bp" -> база "/", а не "./" (t32-фикс)
+# ---------------------------------------------------------------------------
+
+
+def test_root_level_absolute_path() raises:
+    # Чистая проверка контракта пути: без создания файлов в корне ФС.
+    check(
+        resolve_project_path("/Main.bp", "") == "/",
+        "root-level /Main.bp -> '/' (получено "
+        + resolve_project_path("/Main.bp", "")
+        + ")",
+    )
+    check(
+        resolve_project_path("/proj/Main.bp", "") == "/proj/",
+        "вложенный абсолютный путь -> /proj/",
+    )
+    # Остальные режимы не изменились.
+    check(resolve_project_path("Main.bp", "") == "./", "голое имя -> './'")
+    check(resolve_project_path("./Main.bp", "") == "./", "./Main.bp -> './'")
+    check(resolve_project_path("sub/Main.bp", "") == "sub/", "sub/Main.bp -> 'sub/'")
+    check(
+        resolve_project_path("Main.bp", "/proj") == "/proj/",
+        "project_dir выигрывает у dir_name",
+    )
+    check(
+        resolve_project_path("Main.bp", "/proj/") == "/proj/",
+        "project_dir с trailing slash не дублируется",
+    )
+    check(resolve_project_path("/Main.bp", "/proj") == "/proj/", "project_dir для /Main.bp")
 
 
 # ---------------------------------------------------------------------------
@@ -368,6 +401,7 @@ def test_create_full_path_dotdot() raises:
 
 def main() raises:
     test_bare_and_relative_input()
+    test_root_level_absolute_path()
     test_project_dir_param()
     test_dup_zero_arg_module()
     test_distinct_overloads_valid()
