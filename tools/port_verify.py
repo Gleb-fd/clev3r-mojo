@@ -113,6 +113,9 @@ ERROR_CASES = {
 
 WARMUP = 3
 MEASURED = 9
+# Повторный (эскалационный) замер: больше выборок, чтобы отличить реальные 10%
+# от шума на 15–20-мс кейсах (разброс одного прогона там 12–24 мс).
+REPEAT_MEASURED = 31
 REGRESSION_MEDIAN = 0.10
 REGRESSION_ABS_MS = 1.0
 
@@ -645,17 +648,19 @@ def main(argv=None):
             }
         return dt_ms, None
 
-    def measure_group(specs):
+    def measure_group(specs, measured=MEASURED):
         """Round-robin (interleaved) замер нескольких инструментов.
 
         specs: [(tool, dir, entry, binary), ...]. Каждая итерация прогоняет ВСЕ
         инструменты по очереди, поэтому дрейф частоты CPU/планировщика влияет
         на всех одинаково, а не смещает тот инструмент, чей блок шёл первым.
-        Дополнительно порядок КРУТИТСЯ по итерациям (rotation): на этой машине
-        первый прогон после длинного dotnet-процесса шёл на повышенной частоте,
-        и фиксированный порядок систематически давал первому инструменту
-        ~40% форы (ложные >10% на ~20-мс кейсах). При 12 итерациях и 3
-        инструментах каждая позиция достаётся каждому инструменту 4 раза.
+        Дополнительно порядок КРУТИТСЯ по итерациям (rotation), так что каждый
+        инструмент оказывается первым/последним одинаковое число раз. ВАЖНО:
+        длинный dotnet-прогон поднимает частоту CPU; если oracle крутится в том
+        же роунд-робине, соседство baseline/current с ним становится
+        несимметричным и даёт систематические 15–25% на 15-мс кейсах, поэтому
+        на уровне вызова baseline и current замеряются вместе, а oracle —
+        отдельно.
         Бюджет прежний: warmup 3, затем 9 замеров на инструмент; пороги регрессии
         (REGRESSION_MEDIAN / REGRESSION_ABS_MS) не менялись.
 
@@ -672,7 +677,7 @@ def main(argv=None):
         paired_ratio = []
         paired_delta = []
         n = len(specs)
-        for i in range(WARMUP + MEASURED):
+        for i in range(WARMUP + measured):
             order = specs[i % n:] + specs[: i % n]
             iteration = {}
             for tool, d, entry, binary in order:
@@ -801,12 +806,20 @@ def main(argv=None):
             parity["current_vs_oracle"] = {"verdict": "equal" if not d_co else "mismatch"}
             parity["baseline_vs_current"] = {"verdict": "equal" if not d_bc else "mismatch"}
 
+        # baseline и current замеряются ТОЛЬКО вместе, с чередованием порядка:
+        # длинный dotnet-прогон (~130–250 мс) поднимает частоту CPU, и если
+        # ставить oracle между ними, соседство становится несимметричным
+        # (один инструмент чаще оказывается сразу после oracle и получает
+        # фору 15–25% — систематический ложный RED на 15-мс кейсах).
+        # Oracle меряется отдельно: его медиана нужна только для отчёта.
         timings = measure_group(
             [
                 ("baseline", dirs["baseline"], entry, baseline),
                 ("current", dirs["current"], entry, bp),
-                ("oracle", dirs["oracle"], entry, None),
             ]
+        )
+        timings.update(
+            measure_group([("oracle", dirs["oracle"], entry, None)])
         )
         for tool in ("baseline", "current", "oracle"):
             if "error" in timings[tool]:
@@ -858,11 +871,15 @@ def main(argv=None):
                     f"current/baseline={ratio:.3f} (+{delta:.2f}ms), повторяю замер",
                     flush=True,
                 )
+                # Эскалация: больше выборок, тот же порог. На 15–20-мс кейсах
+                # 9 пар дают медиану с ошибкой ~±0.1 — этого мало, чтобы
+                # отличить 10% от шума; 31 пара сужает её примерно втрое.
                 rep = measure_group(
                     [
                         ("baseline", dirs["baseline"], entry, baseline),
                         ("current", dirs["current"], entry, bp),
-                    ]
+                    ],
+                    measured=REPEAT_MEASURED,
                 )
                 metric2 = regression_metric(rep)
                 if any("error" in v for v in rep.values()) or metric2 is None:
@@ -872,6 +889,35 @@ def main(argv=None):
                     rec["repeat"] = rep
                     rec["repeat_current_over_baseline"] = ratio2
                     rec["repeat_ratio_metric"] = ratio_metric2
+                    # Решение — по ОБЪЕДИНЁННЫМ парам (первый блок + повтор):
+                    # больше выборок — уже доверительный интервал медианы, меньше
+                    # шансов, что настоящие 3–7% перевалят порог 10% на хвосте.
+                    # Реальная регрессия видна в обоих блоках и останется видна.
+                    pooled = list(
+                        (timings.get("current", {}).get("paired") or {}).get(
+                            "ratios", []
+                        )
+                    ) + list(
+                        (rep.get("current", {}).get("paired") or {}).get(
+                            "ratios", []
+                        )
+                    )
+                    pooled_delta = list(
+                        (timings.get("current", {}).get("paired") or {}).get(
+                            "deltas_ms", []
+                        )
+                    ) + list(
+                        (rep.get("current", {}).get("paired") or {}).get(
+                            "deltas_ms", []
+                        )
+                    )
+                    if pooled:
+                        ratio2 = statistics.median(pooled)
+                        delta2 = statistics.median(pooled_delta)
+                        ratio_metric2 = "pooled-paired-median"
+                        rec["pooled_n"] = len(pooled)
+                        rec["pooled_current_over_baseline"] = ratio2
+                        rec["pooled_ratio_metric"] = ratio_metric2
                     if ratio2 > 1.0 + REGRESSION_MEDIAN and delta2 > REGRESSION_ABS_MS:
                         status = "confirmed-regression"
                         fail(
@@ -884,7 +930,7 @@ def main(argv=None):
                         ok(
                             f"bench/{label}/regression",
                             f"первый замер {ratio:.3f} ({ratio_metric}), "
-                            f"повтор {ratio2:.3f} — шум",
+                            f"повтор {ratio2:.3f} ({ratio_metric2}) — шум",
                         )
             rec["regression"] = status
         if "median_ms" in timings.get("oracle", {}) and "median_ms" in timings.get("current", {}):
