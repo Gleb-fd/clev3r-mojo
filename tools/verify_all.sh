@@ -154,8 +154,12 @@ run_cli_flash_test() {
         note_fail "test_cli_flash.py: MISSING $path (обязательный hook; до интеграции полный прогон зелёным не считается)"
         return
     fi
-    if ! BP_CLI_FLASH_STRICT=1 python3 "$path" >"$log" 2>&1; then
-        echo "FAIL test_cli_flash.py (rc=$?, strict-режим)"
+    # rc сохраняется явно: после `if ! cmd` значение $? — это статус отрицания,
+    # а не код самого теста.
+    BP_CLI_FLASH_STRICT=1 python3 "$path" >"$log" 2>&1
+    local rc=$?
+    if (( rc != 0 )); then
+        echo "FAIL test_cli_flash.py (rc=$rc, strict-режим)"
         tail -40 "$log" | sed 's/^/    /'
         fail=1
         return
