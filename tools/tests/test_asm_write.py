@@ -14,9 +14,15 @@ CLI-процесс с ограничением RLIMIT_FSIZE в ДОЧЕРНЕМ 
 
 Матрица RLIMIT_FSIZE на реальной валидной программе (golden ButtonsAndMotors,
 образ 1957 Б):
-  * limit 0/1/512/1024 -> сбой записи: существующий .rbf побайтно прежний
-    (sentinel 2057 Б), свежий .rbf не создаётся, временных файлов не остаётся;
-  * limit 2000/4096 -> успех: опубликованный .rbf побайтно равен golden-эталону.
+  * limit 0/1/512/1024 -> сбой записи: rc процесса НЕНУЛЕВОЙ, существующий .rbf
+    побайтно прежний (sentinel 2057 Б), свежий .rbf не создаётся, временных
+    файлов не остаётся;
+  * limit 2000/4096 -> успех: rc=0, опубликованный .rbf побайтно равен
+    golden-эталону.
+
+rc-контракт (CLI 9da6d30: ошибки использования/сбои != 0) проверяется во ВСЕХ
+негативных сценариях: сбой записи, parse-ошибка, отказ mkstemp, read-only цель.
+Текст ошибки проверяется дополнительно, но не вместо rc.
 
 Локальные ABI-ошибки, которые ловятся здесь же:
   * mkstemp(3) возвращает C int; при ошибке код отрицательный. Если читать его
@@ -211,7 +217,11 @@ def case_limit_matrix_existing(bp: str, ck: Checker) -> None:
             out = r.stdout + r.stderr
             base = tag + ".rbf"
             if limit in FAIL_LIMITS:
-                # Образ (1957 Б) не влезает: старый файл обязан выжить целиком.
+                # Образ (1957 Б) не влезает: rc != 0 и старый файл выживает целиком.
+                ck.check(
+                    r.returncode != 0,
+                    f"limit={limit}: rc=0 при сбое записи: {out!r}",
+                )
                 ck.check(
                     got == SENTINEL,
                     f"limit={limit}: существующий .rbf изменён при сбое записи "
@@ -254,6 +264,10 @@ def case_limit_matrix_fresh(bp: str, ck: Checker) -> None:
             rbf = os.path.join(d, tag + ".rbf")
             r = run_bp(bp, lmsb, fsize=limit)
             out = r.stdout + r.stderr
+            ck.check(
+                r.returncode != 0,
+                f"fresh limit={limit}: rc=0 при сбое записи: {out!r}",
+            )
             ck.check(not os.path.exists(rbf), f"fresh limit={limit}: .rbf создан при сбое записи")
             ck.check(
                 "write failed" in out or "short write" in out,
@@ -276,6 +290,7 @@ def case_invalid_preserves_existing(bp: str, ck: Checker) -> None:
         with open(rbf, "rb") as f:
             data = f.read()
         out = r.stdout + r.stderr
+        ck.check(r.returncode != 0, f"invalid: rc=0 при parse-ошибке: {out!r}")
         ck.check("BOGUS_OPCODE" in out, "invalid: нет текста ошибки в выводе")
         ck.check(data == SENTINEL, "invalid: существующий .rbf перезаписан при parse-ошибке")
         ck.check(temp_leftovers(d, "bad.rbf") == [], "invalid: остался временный файл")
@@ -307,6 +322,7 @@ def case_mkstemp_failure_message(bp: str, ck: Checker) -> None:
         finally:
             os.chmod(d, 0o700)
         out = r.stdout + r.stderr
+        ck.check(r.returncode != 0, f"ro-dir: rc=0 при сбое mkstemp: {out!r}")
         ck.check(data == SENTINEL, "ro-dir: существующий .rbf изменён при сбое mkstemp")
         ck.check(
             "cannot create temporary file" in out,
@@ -336,6 +352,7 @@ def case_readonly_target_0444(bp: str, ck: Checker) -> None:
         finally:
             os.chmod(rbf, 0o644)
         out = r.stdout + r.stderr
+        ck.check(r.returncode != 0, f"0444: rc=0 при read-only цели: {out!r}")
         ck.check(
             "not writable" in out,
             f"0444: read-only цель обработана без отказа access(W_OK): {out!r}",
