@@ -17,6 +17,8 @@
     (совпадение sha при разных путях — законная копия, помечается явно);
   * benchmark: warmup>=3, measure>=9, perf_counter вокруг subprocess.run,
     median/min/max + сырые samples, сравнение выходов вне timed-секции;
+    инструменты замеряются interleaved (round-robin по итерациям), иначе
+    дрейф частоты CPU смещает тот инструмент, чей блок шёл первым;
     шесть случаев: small, brickbench, generated3000 (3052 строки — тот же
     fixture, что и в сохранённом baseline t10), include, module, empty;
   * baseline для сравнительного режима обязателен: BP_BASELINE_BINARY или
@@ -618,44 +620,74 @@ def main(argv=None):
             dirs[tool] = d
         return dirs
 
-    def measure(tool, d, entry, binary):
+    def measure_one(tool, d, entry, binary):
+        """Один замер; -> (ms, None) или (None, error)."""
         stem = pathlib.Path(entry).stem
         outdir = d / ("~" + stem)
-        samples = []
-        err = None
+        safe_rmtree(outdir, work)
+        t0 = time.perf_counter()
+        cmd = (
+            [str(binary), "compile", str(d / entry), str(d)]
+            if tool in ("baseline", "current")
+            else ["dotnet", str(dll), str(d / entry), str(d)]
+        )
+        cp = subprocess.run(
+            cmd, cwd=str(d), capture_output=True, text=True,
+            errors="backslashreplace", env=env,
+        )
+        dt_ms = (time.perf_counter() - t0) * 1000.0
+        if cp.returncode != 0 or not (outdir / (stem + ".rbf")).is_file():
+            return None, {
+                "rc": cp.returncode,
+                "stdout": cp.stdout[-500:],
+                "stderr": cp.stderr[-500:],
+            }
+        return dt_ms, None
+
+    def measure_group(specs):
+        """Round-robin (interleaved) замер нескольких инструментов.
+
+        specs: [(tool, dir, entry, binary), ...]. Каждая итерация прогоняет ВСЕ
+        инструменты по очереди, поэтому дрейф частоты CPU/планировщика влияет
+        на всех одинаково, а не смещает тот инструмент, чей блок шёл первым.
+        Дополнительно порядок КРУТИТСЯ по итерациям (rotation): на этой машине
+        первый прогон после длинного dotnet-процесса шёл на повышенной частоте,
+        и фиксированный порядок систематически давал первому инструменту
+        ~40% форы (ложные >10% на ~20-мс кейсах). При 12 итерациях и 3
+        инструментах каждая позиция достаётся каждому инструменту 4 раза.
+        Бюджет прежний: warmup 3, затем 9 замеров на инструмент; пороги регрессии
+        (REGRESSION_MEDIAN / REGRESSION_ABS_MS) не менялись.
+        """
+        samples = {tool: [] for tool, _, _, _ in specs}
+        errors = {}
+        n = len(specs)
         for i in range(WARMUP + MEASURED):
-            safe_rmtree(outdir, work)
-            t0 = time.perf_counter()
-            cmd = (
-                [str(binary), "compile", str(d / entry), str(d)]
-                if tool in ("baseline", "current")
-                else ["dotnet", str(dll), str(d / entry), str(d)]
-            )
-            cp = subprocess.run(
-                cmd, cwd=str(d), capture_output=True, text=True,
-                errors="backslashreplace", env=env,
-            )
-            dt_ms = (time.perf_counter() - t0) * 1000.0
-            if cp.returncode != 0 or not (outdir / (stem + ".rbf")).is_file():
-                err = {
-                    "iteration": i,
-                    "rc": cp.returncode,
-                    "stdout": cp.stdout[-500:],
-                    "stderr": cp.stderr[-500:],
-                }
-                break
-            if i >= WARMUP:
-                samples.append(dt_ms)
-        if err:
-            return {"error": err}
-        return {
-            "n": len(samples),
-            "samples_ms": samples,
-            "median_ms": statistics.median(samples),
-            "min_ms": min(samples),
-            "max_ms": max(samples),
-            "mean_ms": statistics.mean(samples),
-        }
+            order = specs[i % n:] + specs[: i % n]
+            for tool, d, entry, binary in order:
+                if tool in errors:
+                    continue
+                dt_ms, err = measure_one(tool, d, entry, binary)
+                if err is not None:
+                    err["iteration"] = i
+                    errors[tool] = err
+                    continue
+                if i >= WARMUP:
+                    samples[tool].append(dt_ms)
+        out = {}
+        for tool in samples:
+            if tool in errors:
+                out[tool] = {"error": errors[tool]}
+                continue
+            v = samples[tool]
+            out[tool] = {
+                "n": len(v),
+                "samples_ms": v,
+                "median_ms": statistics.median(v),
+                "min_ms": min(v),
+                "max_ms": max(v),
+                "mean_ms": statistics.mean(v),
+            }
+        return out
 
     bench_report = {}
     for label, sub, entry, text in bench_specs:
@@ -734,11 +766,14 @@ def main(argv=None):
             parity["current_vs_oracle"] = {"verdict": "equal" if not d_co else "mismatch"}
             parity["baseline_vs_current"] = {"verdict": "equal" if not d_bc else "mismatch"}
 
-        timings = {}
-        for tool, binary in (("baseline", baseline), ("current", bp), ("oracle", None)):
-            timings[tool] = measure(
-                tool, dirs[tool], entry, binary if binary else bp
-            )
+        timings = measure_group(
+            [
+                ("baseline", dirs["baseline"], entry, baseline),
+                ("current", dirs["current"], entry, bp),
+                ("oracle", dirs["oracle"], entry, None),
+            ]
+        )
+        for tool in ("baseline", "current", "oracle"):
             if "error" in timings[tool]:
                 fail(f"bench/{label}/{tool}", f"прогон не удался: {timings[tool]['error']}")
                 continue
@@ -768,9 +803,12 @@ def main(argv=None):
                     f"(+{delta:.2f}ms), повторяю замер",
                     flush=True,
                 )
-                rep = {}
-                for tool, binary in (("baseline", baseline), ("current", bp)):
-                    rep[tool] = measure(tool, dirs[tool], entry, binary)
+                rep = measure_group(
+                    [
+                        ("baseline", dirs["baseline"], entry, baseline),
+                        ("current", dirs["current"], entry, bp),
+                    ]
+                )
                 if any("error" in v for v in rep.values()):
                     fail(f"bench/{label}/repeat", f"повторный замер упал: {rep}")
                 else:
